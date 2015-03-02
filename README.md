@@ -16,9 +16,9 @@ As a first step to getting to the final product, I will analyze the MTA (NYC
 metro) rollup files and calculate delay processes into a separate database to determine if a model can be established. This has the advantage of using a database for a system that is more or less completely sampled. 
 
 Next steps to be taken:
-1. Upload current code base for delay calculation
-2. Implement GTFS-realtime bindings for the MTA data
+1. Upload current code base for delay calculation.
+2. Implement GTFS-realtime bindings for the MTA data.
 3. Construct the equivalent postgreSQL database of delays with the current
-codebase
-4. Implement a libpgm model for just one or two lines
-5. Visualize results of the test case
+codebase.
+4. Implement a libpgm model for just one or two lines.
+5. Visualize results of the test case.
