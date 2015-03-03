@@ -7,10 +7,10 @@ def main(argv):
 
     # load schedule table
 
-    schedule = schedule_table()
+    overall_schedule = schedule_table()
+    overall_schedule.build()
 
-
-    # possibly load line tables
+    # load line tables
 
     # construct topofile using schedule and line tables
 
@@ -31,7 +31,7 @@ def main(argv):
 
 
 
-    # libpgm loads and produces predictions
+    # libpgm loads and produces first predictions
 
 
 

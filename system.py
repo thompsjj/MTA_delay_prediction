@@ -40,7 +40,10 @@ class System(object):
         # this constructs the topology of the network from a topofile. 
         pass
 
-    def construct_network(self):
-        if 
+    def construct_lines(self):
+        # this constructs the network of lines and stations
+
+        for line in self.topology.lines:
+        pass
 
 
