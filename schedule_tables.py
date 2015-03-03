@@ -94,10 +94,10 @@ class schedule_table(object):
 
 
 
-def line_schedule(schedule_table):
+def route_schedule(schedule_table):
     def __init__(self, name):
         super(schedule_table, self).__init__()
-        self.line_name = name
+        self.route_name = name
         self.loaded = False
 
     def __repr__(self):
