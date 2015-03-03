@@ -1,8 +1,8 @@
 
 
 class schedule_table(object):
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
+        self.name = ''
         self.loaded = False
 
     def build(self, stoptimes, stops):
@@ -91,4 +91,16 @@ class schedule_table(object):
         '''
 
         pass
+
+
+
+def line_schedule(schedule_table):
+    def __init__(self, name):
+        super(schedule_table, self).__init__()
+        self.line_name = name
+        self.loaded = False
+
+    def __repr__(self):
+        return get_stations()
+
 
