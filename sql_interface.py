@@ -2,7 +2,7 @@
 """
 Created on Tue Feb 24 08:02:02 2015
 
-@author: Jared
+@author: Jared J. Thompson
 """
 
 import psycopg2

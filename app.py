@@ -1,7 +1,8 @@
 #!/usr/bin/env 
 import sys, os
-from schedule_tables import schedule_table
-from sql_interface 
+from schedule_tables import schedule_table, mta_route_schedule
+from topology import Topology
+from system import System
 
 def main(argv):
 
@@ -10,9 +11,9 @@ def main(argv):
 
 
 
-    overall_schedule = schedule_table()
-    overall_schedule.build('./google_transit/stop_times.txt', \
-        './google_transit/stops.txt')
+   # overall_schedule = schedule_table()
+   # overall_schedule.build('./google_transit/stop_times.txt', \
+    #    './google_transit/stops.txt')
 
         # load line tables
         #print "getting stations"
@@ -25,23 +26,26 @@ def main(argv):
 
         #print overall_schedule.get_route('J')
 
-
-
+    mta_routes = mta_route_schedule()
+    mta_routes.build('./google_transit/stop_times.txt', \
+        './google_transit/stops.txt')
     # construct topofile using schedule and line tables
 
     route_topology = Topology()
-
     # the topology can be updated with as many routes and joinfiles as desired
+    # here we are just testing route 1
 
-    route_topology.add_mta(overall_schedule.get_route('J'),joinfile=None)
+    route_topology.add_mta_route(mta_routes.get_route('1'),'1')
 
     # construct a system from topofile
-
+    
     mta_system = System()
-
-    mta_system.build(route_topology, overall_schedule)
+    mta_system.build(route_topology, mta_routes)
 
     # attach a line database and build schema from system
+    
+
+
 
     # load system data using the delay - frequency paradigm - MAJOR FUNCTION
     # this is as opposed to actual arrival - schedule paradigm
