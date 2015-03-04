@@ -17,9 +17,35 @@ class Station(object):
         self.neighbor_stations = uniquelist()
         self.collecting = False
         self.in_collection = False
-        
+        self.schedule = None
+        self.schedule_set = False
 
-    
+    def all_trains(self):
+
+        pass
+
+
+
+    def all_trains_today(self):
+
+
+        pass
+
+
+    def current_trains(self):
+        '''This function returns a list of all trains that should be 
+        stopping very soon at this station(at the query point)'''
+        pass
+
+
+    def set_schedule(self, schedule):
+
+        self.schedule = schedule
+        for day, schedule in self.schedule.iteritems():
+            schedule = sorted(schedule) 
+
+        self.schedule_set = True
+
 
     def __repr__(self):
         return "<Station:%s>" % self.station_id

@@ -43,7 +43,7 @@ def main(argv):
     mta_system.build(route_topology, mta_routes)
 
     # attach a line database and build schema from system
-    
+    print mta_system.station['101N'].schedule['WKD']
 
 
 

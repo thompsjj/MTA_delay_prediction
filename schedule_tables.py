@@ -87,20 +87,6 @@ class schedule_table(object):
         return stations
 
 
-
-
-
-    def get_trains(self):
-        '''
-        Returns a list of all trains that are stopping right now (or soon)
-
-        INPUT: None
-        OUTPUT: List (id, name)
-        '''
-        pass
-
-
-
 class mta_route_schedule(schedule_table):
     def __init__(self):
         super(schedule_table, self).__init__()
@@ -140,14 +126,18 @@ class mta_route_schedule(schedule_table):
 
         # Create arrivals
         self.ids = []
-        self.arrivals = defaultdict(list)
+
+        #arrivals needs to be modified for the day
+
+        self.arrivals = defaultdict(lambda :defaultdict(list))
         for line in stop_times:
             l = line.split(",")
+            day = l[0].split('_')[0][-3:]
             time = l[1]
             stop_id = l[3]
             if stop_id not in self.ids:
                 self.ids.append(stop_id)
-            self.arrivals[stop_id].append(time)
+            self.arrivals[stop_id][day].append(time)
 
         # Create table
         self.table = defaultdict()

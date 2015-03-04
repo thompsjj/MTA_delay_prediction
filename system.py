@@ -52,9 +52,16 @@ class System(object):
                 self.station[e[0]].neighbor_stations.append(e[1])
 
     def _populate_stations(self, schedule):
-        
 
+        '''This function takes a station id and sets its schedule for all
+        trains and trips for every day that belong to this station'''
 
+        for stid, Stn in self.station.iteritems():
+            Stn.set_schedule(schedule.table[stid]['arrivals'])
 
     def __repr__(self):
         print self.isBuilt
+
+
+
+

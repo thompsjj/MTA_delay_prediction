@@ -15,7 +15,6 @@ test_url = 'https://datamine-history.s3.amazonaws.com/gtfs-2014-09-17-09-46'
 #a class should be implemented here
 
 
-
 def parse_MTA_API_to_JSON(target_url):
     feed = gtfs_realtime_pb2.FeedMessage()
     response = urllib2.urlopen(target_url)
