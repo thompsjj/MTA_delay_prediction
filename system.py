@@ -29,12 +29,14 @@ from station import Station
 class System(object):
 
     def __init__(self):
+        
         self.num_lines = 0
         self.num_stations = 0
         self.isBuilt = False
         self.station = defaultdict()
 
     def build(self, topology, schedule):
+
         try:
             self._read_topology(topology)
             self._populate_stations(schedule)
@@ -43,6 +45,7 @@ class System(object):
             print e
 
     def _read_topology(self, topology):
+
         if isinstance(topology, Topology):
 
             for v in topology.vertices:

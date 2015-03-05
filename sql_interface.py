@@ -7,6 +7,20 @@ Created on Tue Feb 24 08:02:02 2015
 
 import psycopg2
 
+def connect_to_db(name, user, host, password ):
+    try:
+        conn = psycopg2.connect(database=name, user=user, host=host, password=password)
+        conn.autocommit=True
+    except:
+        print "Unable to connect to the database"
+
+    cursor = conn.cursor()
+    cursor.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'""")
+    for table in cursor.fetchall():
+        print(table)
+
+    return cursor, conn
+
 def connect_to_local_db(name, user, password='user'):
     try:
         conn = psycopg2.connect(database=name, user=user, host='localhost', password=password)
