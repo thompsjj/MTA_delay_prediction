@@ -42,9 +42,9 @@ def main(argv):
     route_topology.add_mta_route(mta_routes.get_route('1'),'1')
 
     # construct a system from topofile
-    
+    reference_date = '2013-12-15-6-349-0-0-0'
     mta_system = System()
-    mta_system.build(route_topology, mta_routes)
+    mta_system.build(route_topology, mta_routes, reference_date)
 
 
     #print mta_system.station['101N'].schedule

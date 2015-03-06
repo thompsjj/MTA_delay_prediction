@@ -9,7 +9,7 @@ import numpy as np
 from collections import defaultdict
 from uniquelist import uniquelist
 from datetime_handlers import timedelta_from_timestring, \
-timestamp_from_timept
+timestamp_from_timept, set_ref_to_datetime, datetime_from_timept
 from copy import copy
 import sys, os
 
@@ -22,28 +22,28 @@ class Station(object):
         self.in_collection = False
         self.schedule = defaultdict(list)
         self.schedule_set = False
-        #self.schedule = None
+        self.reference_date = None
 
-    def set_schedule(self, ext_schedule):
-       self._pass_schedule_to_timedelta(ext_schedule)
-       self._calculate_delay_conformal_mapping()
-       self.schedule_set = True
-
+    def set_schedule(self, ext_schedule, reference_date):
+        self.reference_date = reference_date
+        self.schedule = ext_schedule
+        self.schedule_set = True
 
     def __repr__(self):
         return "<Station:%s>" % self.station_id
 
 
-class MTAStation(Station):
 
+class MTAStation(Station):
     def __init__(self, station_id):
-        super(Station, self).__init__()
+        super(MTAStation, self).__init__(station_id)
         self.station_id = station_id
         self.neighbor_stations = uniquelist()
         self.collecting = False
         self.in_collection = False
         self.schedule = defaultdict(list)
         self.schedule_set = False
+        self.conf_schedule = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))
 
 
     #this is MTA 26H specific and should be in a descendent class
@@ -52,6 +52,12 @@ class MTAStation(Station):
         for day, sched in ext_schedule.iteritems():
             for t, time in enumerate(sched):
                 self.schedule[day].append(timedelta_from_timestring(time))
+
+    def set_schedule(self, ext_schedule, reference_date):
+        self.reference_date = reference_date
+        self._pass_schedule_to_timedelta(ext_schedule)
+        self._calculate_delay_conformal_mapping()
+        self.schedule_set = True
 
 
     def _calculate_delay_conformal_mapping(self):
@@ -63,80 +69,27 @@ class MTAStation(Station):
         sample_points = ['01','06','11','16','21','26','31','36','41',\
         '46','51','56']
 
-
-        #testing here
-
-
-        self.conf_mapping = defaultdict(lambda : defaultdict(list))
-        for hour in hourtypes:
-            for point in sample_points:   
-                timept = '2001-01-01-%s-%s' % (hour, point)
-                sample_timestamp = timestamp_from_timept(timept, 'US/Eastern')
-
-                rel_vector = []
-
-                for i, arr in enumerate(self.schedule['WKD']):
-                    rel_vector.append(arr-sample_timestamp)
-                    #for tmpt in self.schedule[day]:
-                self.conf_mapping[hour][point] = rel_vector
-
-
-        print self.conf_mapping['08']['46']
-
-
-
-    '''for day in ['WKD','SAT','SUN']:
+        for day in ['WKD','SAT','SUN']:
             for hour in hourtypes:
-                for point in sample_points:
-                    timept = '1900-01-01-%s-%s' % (hour, point)
-                    sample_timestamp = timestamp_from_timept(timept)
+                for minute in sample_points:   
 
-                    # For each point in the schedule for that day, calculate
-                    # the timedelta 
-                    # difference between it and the train based on the 1900 
-                    # basis
+                    rel_vector = []
 
+                    for i, arr in enumerate(self.schedule[day]):
 
-                    for tmpt in self.schedule[day]:
+                        # set clock on sample date to relative hour, pt
+                        # produce timedelta between reference date 
+                        # midnight and sample time
 
+                        present = \
+                        set_ref_to_datetime(hour, minute, self.reference_date)
 
+                        ref_timestamp = \
+                        datetime_from_timept(self.reference_date)
 
-                    # this makes a vector of 1Xtimestamps for each train.
+                        rel_vector.append((arr+present)-ref_timestamp)
 
-
-                    # the schedule is then represented by a marked matrix of 
-                    # timestamps 
-
-
-
-
-                    # calculate the relationship between two trains based on the
-                    # time point stamp and each other get a time delta
-
-
-
-                    # now calculate difference matrix between each train and 
-                    # timestamp
-
-
-
-                    # the actual delays are now vector dot products 
-
-                    # build difference vector between the present timestamp and 
-                    # every train in the schedule'''
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    self.conf_schedule[day][hour][minute] = rel_vector
 
 
 

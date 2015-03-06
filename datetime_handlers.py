@@ -4,6 +4,23 @@ from datetime import datetime, timedelta
 from calendar import timegm
 import os
 
+
+def set_ref_to_datetime(hour, minute, reference_date):
+
+    cur = reference_date.split('-')
+    cur_yr = int(cur[0])
+    cur_mon = int(cur[1])
+    cur_mday = int(cur[2])
+    cur_wday = int(cur[3]) #0 is monday
+    cur_yday = int(cur[4])   
+    cur_hour = int(hour)
+    cur_min = int(minute)
+    cur_sec = int(cur[7])
+
+    return datetime(year=cur_yr, month=cur_mon, day=cur_mday, hour=cur_hour,\
+     minute=cur_min, second=cur_sec)
+
+
 def timestamp_from_timept(timept, timezone):
 
     #hacky
@@ -12,6 +29,22 @@ def timestamp_from_timept(timept, timezone):
     datetime_obj = datetime.strptime(timept+'-01', '%Y-%m-%d-%H-%M-%S')
 
     return mktime(datetime_obj.timetuple())
+
+def datetime_from_timept(timept):
+
+    cur = timept.split('-')
+    cur_yr = int(cur[0])
+    cur_mon = int(cur[1])
+    cur_mday = int(cur[2])
+    cur_wday = int(cur[3]) #0 is monday
+    cur_yday = int(cur[4])   
+    cur_hour = int(cur[5])
+    cur_min = int(cur[6])
+    cur_sec = int(cur[7])
+
+    return datetime(year=cur_yr, month=cur_mon, day=cur_mday, hour=cur_hour,\
+     minute=cur_min, second=cur_sec)
+
 
 
 def trip_day_from_timestamp(timestamp):

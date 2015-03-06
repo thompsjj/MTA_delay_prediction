@@ -35,11 +35,14 @@ class System(object):
         self.isBuilt = False
         self.station = defaultdict()
 
-    def build(self, topology, schedule):
+    def build(self, topology, schedule, reference_date):
 
         try:
             self._read_topology(topology)
-            self._populate_stations(schedule)
+
+            print 'check 1'
+
+            self._populate_stations(schedule, reference_date)
             self.isBuilt = True
         except StandardError, e:
             print e
@@ -54,13 +57,13 @@ class System(object):
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
 
-    def _populate_stations(self, schedule):
+    def _populate_stations(self, schedule, reference_date):
 
         '''This function takes a station id and sets its schedule for all
         trains and trips for every day that belong to this station'''
 
         for stid, stn in self.station.iteritems():
-            stn.set_schedule(schedule.table[stid]['arrivals'])
+            stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
 
     def __repr__(self):
         print self.isBuilt
