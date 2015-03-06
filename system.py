@@ -39,20 +39,18 @@ class System(object):
 
         try:
             self._read_topology(topology)
-
-            print 'check 1'
-
             self._populate_stations(schedule, reference_date)
             self.isBuilt = True
         except StandardError, e:
             print e
+
 
     def _read_topology(self, topology):
 
         if isinstance(topology, Topology):
 
             for v in topology.vertices:
-                self.station[v] = MTAStation(v)
+                self.station[v] = Station(v)
 
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
@@ -69,5 +67,30 @@ class System(object):
         print self.isBuilt
 
 
+
+class MTASystem(System):
+
+    def __init__(self):
+        super(MTASystem, self).__init__()
+        self.num_lines = 0
+        self.num_stations = 0
+        self.isBuilt = False
+        self.station = defaultdict()
+
+    def sample_arrival_times_from_db(self, cursor):
+
+        for stid, stn in self.station.iteritems():
+            sample_db_to_mta_station(cursor, stn)
+
+
+    def _read_topology(self, topology):
+
+        if isinstance(topology, Topology):
+
+            for v in topology.vertices:
+                self.station[v] = MTAStation(v)
+
+            for e in topology.edges:
+                self.station[e[0]].neighbor_stations.append(e[1])
 
 

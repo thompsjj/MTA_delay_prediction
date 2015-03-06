@@ -6,6 +6,7 @@ import psycopg2
 import numpy as np
 
 def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
+
     from datetime import date
     from dateutil.rrule import rrule, DAILY
     from datetime_handlers import timestamp_from_timept, trip_day_from_timestamp
@@ -59,6 +60,23 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
                         with open(fname, 'a+') as errf:
                             errf.write("%s\n" % fulltime)
         errf.close()
+
+###############################################################################
+def sample_db_to_mta_station(cur, stn):
+
+    if table_exists(cur, table_name):
+
+
+
+    else:
+        print 
+
+
+
+
+
+
+
 
 
 ###############################################################################

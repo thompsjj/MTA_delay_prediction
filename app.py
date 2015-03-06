@@ -2,9 +2,9 @@
 import sys, os
 from schedule_tables import schedule_table, mta_route_schedule
 from topology import Topology
-from system import System
+from system import System, MTASystem
 import psycopg2
-
+from sql_interface import connect_to_local_db
 
 def main(argv):
 
@@ -43,21 +43,21 @@ def main(argv):
 
     # construct a system from topofile
     reference_date = '2013-12-15-6-349-0-0-0'
-    mta_system = System()
+
+
+
+    mta_system = MTASystem()
     mta_system.build(route_topology, mta_routes, reference_date)
-
-
-    #print mta_system.station['101N'].schedule
-
 
     # attach to historical db
     
-    '''cursor, conn = connect_to_local_db('mta_historical','postgres')'''
+    cursor, conn = connect_to_local_db('mta_historical','postgres')
 
-    
-    #compute time 
 
     #map arrivals times to stations
+    mta_system.sample_arrival_times_from_db(cursor)
+
+
 
     #station - calculate present expected frequency between trains. 
 
