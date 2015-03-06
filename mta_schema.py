@@ -20,6 +20,28 @@ def create_mta_eta_schema(cur, table_name):
         else:
             print 'cursor is closed.'
 
+def drop_mta_eta_schema(cur, table_name):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            cur.execute("DROP TABLE %s;" % table_name)
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'cursor is closed.'
+
+
+def check_mta_eta_schema(cur, table_name, nrows):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            cur.execute("SELECT * FROM %s LIMIT %s;" % (table_name, nrows))
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'cursor is closed.'
+
+
+
+
 
 def update_mta_eta_schema(cur, table_name, input_v):
 
@@ -27,37 +49,11 @@ def update_mta_eta_schema(cur, table_name, input_v):
         if cur.closed==False:
 
             cur.execute("INSERT INTO %s \
-                ( stop_id, trip_type, trip_id, eta_sample, reference_time) \
+                ( stop_id, trip_type, trip_id, eta_sample, reference) \
                 VALUES ('%s', '%s', '%s', '%s', '%s');" % \
             (table_name, input_v['stop_id'], input_v['trip_type'],\
             input_v['trip_id'],input_v['eta_sample'], \
             input_v['reference']))
-        else:
-            print 'cursor is closed.'
-
-
-def create_mta_schedule_schema(cur, table_name):
-    if table_exists(cur, table_name):
-        print "table %s exists already." % table_name
-        return None
-    else:
-        if cur.closed==False:
-            cur.execute("CREATE TABLE %s( trip_name varchar(30), \
-            trip_type varchar(30), station_id varchar(30), \
-            destination_id varchar(30), line_name_id varchar(40), \
-            departure_time interval);" % table_name)
-        else:
-            print 'cursor is closed.'
-            
-def update_mta_schedule_schema(cur, table_name, input_v):
-    if table_exists(cur, table_name):
-        if cur.closed==False:            
-            cur.execute("INSERT INTO %s( trip_name, trip_type, station_id, \
-                destination_id, line_name_id, departure_time) VALUES ('%s', \
-                '%s', '%s', '%s', '%s', '%s');" % \
-            (table_name, input_v['trip_name'], input_v['trip_type'],\
-            input_v['station_id'],input_v['destination_id'], \
-            input_v['line_name_id'],input_v['departure_time']))
         else:
             print 'cursor is closed.'
 
@@ -101,3 +97,31 @@ def get_first_mta_train_from_schema(cur, table_name, station_id,\
             return cur.fetchall()
         else:
             print 'cursor is closed.'
+
+
+
+'''def create_mta_schedule_schema(cur, table_name):
+    if table_exists(cur, table_name):
+        print "table %s exists already." % table_name
+        return None
+    else:
+        if cur.closed==False:
+            cur.execute("CREATE TABLE %s( trip_name varchar(30), \
+            trip_type varchar(30), station_id varchar(30), \
+            destination_id varchar(30), line_name_id varchar(40), \
+            departure_time interval);" % table_name)
+        else:
+            print 'cursor is closed.'
+            
+def update_mta_schedule_schema(cur, table_name, input_v):
+    if table_exists(cur, table_name):
+        if cur.closed==False:            
+            cur.execute("INSERT INTO %s( trip_name, trip_type, station_id, \
+                destination_id, line_name_id, departure_time) VALUES ('%s', \
+                '%s', '%s', '%s', '%s', '%s');" % \
+            (table_name, input_v['trip_name'], input_v['trip_type'],\
+            input_v['station_id'],input_v['destination_id'], \
+            input_v['line_name_id'],input_v['departure_time']))
+        else:
+            print 'cursor is closed.'
+'''

@@ -28,6 +28,7 @@ def main(argv):
 
         #print overall_schedule.get_route('J')
 
+
     mta_routes = mta_route_schedule()
     mta_routes.build('./google_transit/stop_times.txt', \
         './google_transit/stops.txt')
@@ -49,34 +50,22 @@ def main(argv):
     #print mta_system.station['101N'].schedule
 
 
-
-
-    # attach a line database and build schema from system
+    # attach to historical db
     
-
-
-
-
-    from mta_database_handlers import sample_mta_historical, \
-    create_mta_etd_schema
-
-    from sql_interface import connect_to_local_db
-
-    cursor, conn = connect_to_local_db('mta_historical','postgres')
-
-    create_mta_etd_schema(cursor, 'mta_historical')
-    sample_mta_historical(cursor, 'mta_historical', \
-     'https://datamine-history.s3.amazonaws.com/', '2014-09-17', '2014-9-17')
-
-    # external (fundamentally temporary)
-    # load system data into static database (ideally this would be a dynamically
-    # collected database)
+    '''cursor, conn = connect_to_local_db('mta_historical','postgres')'''
 
     
-    
+    #compute time 
+
+    #map arrivals times to stations
+
+    #station - calculate present expected frequency between trains. 
+
+    #calculate either differences between trains
 
 
-    
+    # need to process this into delays
+
     # for number of days in num_days (need at least a few weeks):
         # for number of hours in a day 
             # for number of samples in an hour (cited on MTA site)

@@ -3,6 +3,7 @@ import mta_schema
 from time import strftime, strptime
 import datetime
 import psycopg2
+import numpy as np
 
 def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
     from datetime import date
@@ -44,44 +45,84 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
 
 
                     #create reference timestamp
-                    reference_timestamp = timestamp_from_timept(fulltime)
+                    reference_timestamp = timestamp_from_timept(fulltime,\
+                     'US/Eastern')
 
-                    trip_day = trip_day_from_timestamp(reference_timestamp)
-
-
-                    print trip_day
-                    #obtain history
                     history = parse_mta_historical(\
-                        parse_mta_api_to_json(target_url)\
-                        reference_timestamp)
+                        parse_mta_api_to_json(target_url),reference_timestamp)
 
-
-                    
-                    #difference = (float(history[0]['arrival'])-float(qtime))/60.
-
-
-
-                    #update database
-
-
-
+                    if np.any(history):
+                        for i, entry in enumerate(history):
+                            update_mta_eta_schema(cur, table_name, entry)
+                    else:
+                        fname = '%s_failed_samples.txt' % table_name
+                        with open(fname, 'a+') as errf:
+                            errf.write("%s\n" % fulltime)
+        errf.close()
 
 
 ###############################################################################
 
-
-
-def create_mta_etd_schema(cur, table_name):
+def create_mta_eta_schema(cur, table_name):
 
     if table_exists(cur, table_name):
         print "table %s exists already." % table_name
         return None
     else:
         if cur.closed==False:
-            cur.execute("CREATE TABLE %s( stop_id varchar(5), trip_id varchar(40),\
-            eta timestamp, sample_time timestamp);" % table_name)
+            cur.execute("CREATE TABLE %s( stop_id varchar(20), \
+                trip_type varchar(5), trip_id varchar(20), \
+                eta_sample bigint, reference bigint);" % table_name)
         else:
             print 'cursor is closed.'
+
+def drop_mta_eta_schema(cur, table_name):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            cur.execute("DROP TABLE %s;" % table_name)
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'cursor is closed.'
+
+
+def check_mta_eta_schema(cur, table_name, nrows):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            cur.execute("SELECT * FROM %s LIMIT %s;" % (table_name, nrows))
+            return  cur.fetchall()
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'cursor is closed.'
+
+def size_mta_eta_schema(cur, table_name):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            cur.execute("SELECT \
+                pg_size_pretty(pg_database_size(current_database())) \
+                AS human_size;")
+            return  cur.fetchall()
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'cursor is closed.'
+
+
+def update_mta_eta_schema(cur, table_name, input_v):
+
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+
+            cur.execute("INSERT INTO %s \
+                ( stop_id, trip_type, trip_id, eta_sample, reference) \
+                VALUES ('%s', '%s', '%s', '%s', '%s');" % \
+            (table_name, input_v['stop_id'], input_v['trip_type'],\
+            input_v['trip_id'],input_v['eta_sample'], \
+            input_v['reference']))
+        else:
+            print 'cursor is closed.'
+
 
 def create_mta_schedule_schema(cur, table_name):
 

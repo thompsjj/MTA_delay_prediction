@@ -4,12 +4,12 @@ from datetime import datetime, timedelta
 from calendar import timegm
 import os
 
-def timestamp_from_timept(timept):
-    
-    os.environ['TZ'] = 'US/Eastern'
+def timestamp_from_timept(timept, timezone):
+
+    #hacky
+    os.environ['TZ'] = timezone
     tzset()
     datetime_obj = datetime.strptime(timept+'-01', '%Y-%m-%d-%H-%M-%S')
-    #datetime_obj = timezone('US/Eastern').localize(datetime_obj)
 
     return mktime(datetime_obj.timetuple())
 

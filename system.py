@@ -7,7 +7,7 @@ Created on Mon Mar 2 17:32:02 2015
 """
 from topology import Topology
 from collections import defaultdict
-from station import Station
+from station import Station, MTAStation
 # The system structure owns all lines, stations and trips, 
 # and it owns all update methods from the top down. 
 
@@ -49,7 +49,7 @@ class System(object):
         if isinstance(topology, Topology):
 
             for v in topology.vertices:
-                self.station[v] = Station(v)
+                self.station[v] = MTAStation(v)
 
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
@@ -59,8 +59,8 @@ class System(object):
         '''This function takes a station id and sets its schedule for all
         trains and trips for every day that belong to this station'''
 
-        for stid, Stn in self.station.iteritems():
-            Stn.set_schedule(schedule.table[stid]['arrivals'])
+        for stid, stn in self.station.iteritems():
+            stn.set_schedule(schedule.table[stid]['arrivals'])
 
     def __repr__(self):
         print self.isBuilt
