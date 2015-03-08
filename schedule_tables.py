@@ -104,6 +104,10 @@ class mta_route_schedule(schedule_table):
         #print stoptimes
         #print stops
 
+        print stoptimes
+        print stops
+
+
         stop_times = open(stoptimes, "r+")
         stop_info = open(stops, "r+")
 
@@ -119,25 +123,24 @@ class mta_route_schedule(schedule_table):
             lat = l[4]
             lon = l[5]
             route = stop_id[0]
+
             entry = {'id':stop_id, 'name' : name, 'lat': lat, 'lon': lon}
             self.stops[stop_id] = entry
             self.routes[route].append(entry)
-            #print self.stops[stop_id]
+
 
         # Create arrivals
         self.ids = []
-
-        #arrivals needs to be modified for the day
-
         self.arrivals = defaultdict(lambda :defaultdict(list))
         for line in stop_times:
             l = line.split(",")
-            day = l[0].split('_')[0][-3:]
-            time = l[1]
-            stop_id = l[3]
+            day = l[6].strip()
+            arrival_time = l[2].split(' ')[1]
+            stop_id = l[4]
+
             if stop_id not in self.ids:
                 self.ids.append(stop_id)
-            self.arrivals[stop_id][day].append(time)
+            self.arrivals[stop_id][day].append(arrival_time)
 
         # Create table
         self.table = defaultdict()

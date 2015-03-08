@@ -5,9 +5,9 @@ from calendar import timegm
 import os
 
 
-def set_ref_to_datetime(hour, minute, reference_date):
+def set_ref_to_datetime(hour, minute, reference_timept):
 
-    cur = reference_date.split('-')
+    cur = reference_timept.split('-')
     cur_yr = int(cur[0])
     cur_mon = int(cur[1])
     cur_mday = int(cur[2])
@@ -45,6 +45,20 @@ def datetime_from_timept(timept):
     return datetime(year=cur_yr, month=cur_mon, day=cur_mday, hour=cur_hour,\
      minute=cur_min, second=cur_sec)
 
+def timestamp_from_refdt(hour, minute, reference_dt, timezone):
+    os.environ['TZ'] = timezone
+    tzset()
+    cur_yr = int(reference_dt.year)
+    cur_mon = int(reference_dt.month)
+    cur_mday = int(reference_dt.day)
+    cur_hour = int(hour)
+    cur_min = int(minute)
+    cur_sec = int(0)
+
+    datetime_obj = datetime(ear=cur_yr, month=cur_mon, day=cur_mday, \
+    hour=cur_hour, minute=cur_min)
+
+    return mktime(datetime_obj.timetuple())
 
 
 def trip_day_from_timestamp(timestamp):

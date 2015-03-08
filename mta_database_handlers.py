@@ -44,7 +44,6 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
 
                     print 'accessing: %s' % target_url
 
-
                     #create reference timestamp
                     reference_timestamp = timestamp_from_timept(fulltime,\
                      'US/Eastern')
@@ -62,22 +61,28 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
         errf.close()
 
 ###############################################################################
-def sample_db_to_mta_station(cur, stn):
 
+def query_mta_historical_closest_train(cur, table_name, station_id, sample_tstamp):
     if table_exists(cur, table_name):
+        if cur.closed==False:
+
+            #return the trains at the station closest to timestamp. 
+
+            cur.execute("SELECT stop_id, eta_sample, eta_sample-%s AS diff \
+                FROM %s \
+                WHERE stop_id=%s \
+                GROUP BY stop_id, eta_sample \
+                HAVING eta_sample-%s>0 \
+                ORDER BY diff ASC \
+                LIMIT 1;")
 
 
-
+            cur.execute("SELECT * FROM %s LIMIT %s;" % (table_name, nrows))
+            return  cur.fetchall()
+        else:
+            print 'cursor is closed.'
     else:
-        print 
-
-
-
-
-
-
-
-
+        print 'Query MTA historical: Table is closed'
 
 ###############################################################################
 

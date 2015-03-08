@@ -8,6 +8,7 @@ Created on Mon Mar 2 17:32:02 2015
 from topology import Topology
 from collections import defaultdict
 from station import Station, MTAStation
+import sys, os
 # The system structure owns all lines, stations and trips, 
 # and it owns all update methods from the top down. 
 
@@ -77,10 +78,10 @@ class MTASystem(System):
         self.isBuilt = False
         self.station = defaultdict()
 
-    def sample_arrival_times_from_db(self, cursor):
+    def sample_arrival_times_from_db(self, cursor, start_date, end_date):
 
         for stid, stn in self.station.iteritems():
-            sample_db_to_mta_station(cursor, stn)
+            stn.sample_history_from_db(cursor, stn, start_date, end_date)
 
 
     def _read_topology(self, topology):
@@ -92,5 +93,10 @@ class MTASystem(System):
 
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
+
+
+
+
+
 
 
