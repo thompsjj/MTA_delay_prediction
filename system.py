@@ -40,8 +40,9 @@ class System(object):
 
         try:
             self._read_topology(topology)
-            self._populate_stations(schedule, reference_date)
-            self.isBuilt = True
+            if schedule:
+                self._populate_stations(schedule, reference_date)
+                self.isBuilt = True
         except StandardError, e:
             print e
 
@@ -81,7 +82,7 @@ class MTASystem(System):
     def sample_arrival_times_from_db(self, cursor, start_date, end_date):
 
         for stid, stn in self.station.iteritems():
-            stn.sample_history_from_db(cursor, stn, start_date, end_date)
+            stn.sample_history_from_db(cursor, start_date, end_date)
 
 
     def _read_topology(self, topology):

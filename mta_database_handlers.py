@@ -62,23 +62,20 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
 
 ###############################################################################
 
-def query_mta_historical_closest_train(cur, table_name, station_id, sample_tstamp):
+def query_mta_historical_closest_train(cur, table_name, station_id, sample_tstamp, padding):
     if table_exists(cur, table_name):
         if cur.closed==False:
-
             #return the trains at the station closest to timestamp. 
 
-            cur.execute("SELECT stop_id, eta_sample, eta_sample-%s AS diff \
-                FROM %s \
-                WHERE stop_id=%s \
-                GROUP BY stop_id, eta_sample \
-                HAVING eta_sample-%s>0 \
-                ORDER BY diff ASC \
-                LIMIT 1;")
+            query = "SELECT * FROM %s WHERE reference BETWEEN %s AND %s AND stop_id='%s';" % (table_name, sample_tstamp, sample_tstamp+padding, station_id)
 
+           #print query
 
-            cur.execute("SELECT * FROM %s LIMIT %s;" % (table_name, nrows))
-            return  cur.fetchall()
+            cur.execute(query)
+            response = cur.fetchone()
+            if not response:
+                return []
+            return  response['eta_sample']
         else:
             print 'cursor is closed.'
     else:

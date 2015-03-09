@@ -55,7 +55,7 @@ def timestamp_from_refdt(hour, minute, reference_dt, timezone):
     cur_min = int(minute)
     cur_sec = int(0)
 
-    datetime_obj = datetime(ear=cur_yr, month=cur_mon, day=cur_mday, \
+    datetime_obj = datetime(year=cur_yr, month=cur_mon, day=cur_mday, \
     hour=cur_hour, minute=cur_min)
 
     return mktime(datetime_obj.timetuple())

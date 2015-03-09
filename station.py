@@ -10,7 +10,7 @@ from collections import defaultdict
 from uniquelist import uniquelist
 from itertools import cycle
 from datetime_handlers import timedelta_from_timestring, \
-timestamp_from_timept, set_ref_to_datetime, datetime_from_timept \
+timestamp_from_timept, set_ref_to_datetime, datetime_from_timept, \
 timestamp_from_refdt
 from copy import copy
 import sys, os
@@ -41,6 +41,7 @@ class Station(object):
 
 
 class MTAStation(Station):
+    from mta_database_handlers import query_mta_historical_closest_train
     def __init__(self, station_id):
         super(MTAStation, self).__init__(station_id)
         self.station_id = station_id
@@ -52,7 +53,7 @@ class MTAStation(Station):
         self.conf_schedule = \
         defaultdict(lambda : defaultdict(lambda : defaultdict()))
         self.historical_schedule = \
-                defaultdict(lambda : defaultdict(lambda : defaultdict()))      
+                defaultdict(lambda : defaultdict(lambda : defaultdict(list)))      
 
 
 
@@ -114,8 +115,14 @@ class MTAStation(Station):
 
                     if len(check_pt) > 0:
                         closest_train = min(check_pt, key=lambda x: x[0])[0]
-                    else:
+                    
+                    elif (hour == self.hourtypes[-1]):
                         closest_train = 'next'
+                    else:
+                        print '_calculate_conformal_schedule \n: \
+                        a major error occurred while setting \n \
+                        the schedule for station %s' % (self.station_id)
+                        print "%s %s" % (hour, minute)
 
                     # the conformal time is this minumum distance to the point
                     self.conf_schedule[day][hour][minute] = closest_train
@@ -131,7 +138,24 @@ class MTAStation(Station):
                             [self.hourtypes[0]][self.sample_points[0]]\
                             +timedelta_from_timestring('00:05:00')
 
-    del sample_history_from_db(cursor, self, start_date, end_date):
+
+
+    def sample_history_from_db(self, cursor, startdate, enddate):
+        from mta_database_handlers import query_mta_historical_closest_train
+
+        s = startdate.split('-')
+        startyr = int(s[0])
+        startmo = int(s[1])
+        startday = int(s[2])
+
+        e = enddate.split('-')
+        endyr = int(e[0])
+        endmo = int(e[1])
+        endday = int(e[2])
+
+        a = date(startyr, startmo, startday)
+        b = date(endyr, endmo, endday)
+
 
         for dt in rrule(DAILY, dtstart=a, until=b):
             print 'station %s accessing: %s' % \
@@ -141,16 +165,24 @@ class MTAStation(Station):
             
             for hour in self.hourtypes:
                 for minute in self.sample_points:
-                    current_tstamp = timestamp_from_refdt(hour, minute, dt)
 
-                    query_mta_historical_closest_train(cursor, self.station_id,\
-                        current_tstamp)
+                    #it is unclear how or where DST needs to be handled here
 
+                    current_tstamp = timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
 
+                    response = query_mta_historical_closest_train(\
+                        cursor,'mta_historical_small', self.station_id,\
+                         current_tstamp, 120)
 
-                    #self.historical_schedule[day][hour][minute]
+                    if response:
+                        self.historical_schedule[day][hour][minute].append(response)
+                        print response
+                    else:
+                        self.historical_schedule[day][hour][minute].append(0)
 
+        print 'station %s ' % (self.station_id)
+        print self.historical_schedule[day]
 
-
+            #now the schedule is set for seconds past the timestamp
 
 
