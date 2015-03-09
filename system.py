@@ -84,7 +84,9 @@ class MTASystem(System):
         for stid, stn in self.station.iteritems():
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
-            stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+            #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+            stn.sample_history_from_db_threaded( start_date, end_date, 'mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+
 
     def _read_topology(self, topology):
 

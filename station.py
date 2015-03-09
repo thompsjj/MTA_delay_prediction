@@ -226,39 +226,64 @@ class MTAStation(Station):
         max_tstamp = timestamp_from_refdt(self.hourtypes[-1],self.sample_points[-1],b,'US/Eastern')+3600
 
         sample_tstamp = []
-
+        THREAD_NAMES = []
         for dt in rrule(DAILY, dtstart=a, until=b):
             for hour in self.hourtypes:
                 for minute in self.sample_points:
                     sample_tstamp.append(timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600)
-                
+                    THREAD_NAMES.append("Thread: %s :: %s :%s:%s" % (self.station_id, dt.strftime("%Y-%m-%d"), hour, minute))
+        
+        #####################Threading Functions Here###########################
+
+
         def select_func(conn_or_pool, table_name, station_id, start_tstamp, stop_tstamp):
             name = threading.currentThread().getName()
             
-            for i in range(SELECT_SIZE):
-                try:
-                    conn = conn_or_pool.getconn()
-                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                    c = conn.cursor()
+            try:
+                conn = conn_or_pool.getconn()
+                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                c = conn.cursor()
 
-                    query = "SELECT * FROM %s WHERE stop_id='%s' \
+                query = "SELECT * FROM %s WHERE stop_id='%s' \
                         AND reference BETWEEN %s AND %s \
                         ORDER BY eta_sample ASC;" \
-                        % (table_name, station_id, start_tstamp, finish_tstamp)
+                        % (table_name, station_id, start_tstamp, stop_tstamp)
 
-                    c.execute(query)
-                    l = c.fetchall()
-                    conn_or_pool.putconn(conn)
+                c.execute(query)
+                l = c.fetchall()
 
-                    s = name + ": number of rows fetched: " + str(len(l))
-                    print s
-                except psycopg2.ProgrammingError, err:
-                    print name, ": an error occurred; skipping this select"
-                    print err
+                conn_or_pool.putconn(conn)
+
+                s = name + ": number of rows fetched: " + str(len(l))
+                print name
+                print s
+            except psycopg2.ProgrammingError, err:
+                print name, ": an error occurred; skipping this select"
+                print err
+            finally:
+                c.close()
 
 
+        ## OPEN CONNECTION ##
+        min_t = 1
+        max_t = len(THREAD_NAMES)
+        conn_select = ThreadedConnectionPool(min_t, max_t, database=database, user=user, host=host, password=password)
 
+        ## JOIN THREADS ##
 
+        threads = []
+        for i, name in enumerate(THREAD_NAMES):
+            t = threading.Thread(None, select_func, 'Thread-'+name,
+                         (conn_select, table_name, self.station_id, sample_tstamp[i],max_tstamp))
+            t.setDaemon(0)
+            threads.append(t)
+
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join()
+            print t.getName(), "exited OK"
 
 
 

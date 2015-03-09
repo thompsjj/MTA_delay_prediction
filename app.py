@@ -57,7 +57,10 @@ def main(argv):
 
 
 
-    cursor, conn = connect_to_local_db('mta_historical','postgres')
+    cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
+
+
+
 
     try:
         cursor.execute("CREATE INDEX stid ON mta_historical_small USING gin (to_tsvector('english',stop_id));")
@@ -73,6 +76,8 @@ def main(argv):
     cursor.close()
     conn.close()
 
+
+    sys.exit(0)
 
 
     cursor, conn = sample_local_db_dict_cursor('mta_historical','postgres')
