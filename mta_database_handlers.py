@@ -67,19 +67,51 @@ def query_mta_historical_closest_train(cur, table_name, station_id, sample_tstam
         if cur.closed==False:
             #return the trains at the station closest to timestamp. 
 
-            query = "SELECT * FROM %s WHERE reference BETWEEN %s AND %s AND stop_id='%s';" % (table_name, sample_tstamp, sample_tstamp+padding, station_id)
+            #query = "SELECT * FROM %s WHERE reference BETWEEN %s AND %s AND stop_id='%s';" % (table_name, sample_tstamp, sample_tstamp+padding, station_id)
+            
+            query = "WITH stop_info AS(\
+                SELECT eta_sample, (eta_sample-%s) AS diff \
+                FROM %s \
+                WHERE stop_id='%s')\
+                SELECT * FROM stop_info \
+                WHERE diff > 0 \
+                ORDER BY diff ASC;" % (sample_tstamp, table_name, station_id)
+
+
+
+            #query = "SELECT * FROM mta_historical_small WHERE stop_id='126N' AND reference BETWEEN %s AND %s;" 
 
            #print query
 
             cur.execute(query)
-            response = cur.fetchone()
+            response = cur.fetchall()
             if not response:
                 return []
-            return  response['eta_sample']
+            return  response[0]['eta_sample']
         else:
             print 'cursor is closed.'
     else:
         print 'Query MTA historical: Table is closed'
+
+###############################################################################
+
+def query_mta_historical_closest_train_between(cur, table_name, station_id, start_tstamp, finish_tstamp):
+    if table_exists(cur, table_name):
+        if cur.closed==False:
+            #return the trains at the station closest to timestamp. 
+            
+            query = "SELECT * FROM %s WHERE stop_id='%s' AND reference BETWEEN %s AND %s ORDER BY eta_sample ASC;" % (table_name, station_id, start_tstamp, finish_tstamp)
+
+            cur.execute(query)
+            response = cur.fetchall()
+            if not response:
+                return 0
+            return  response[0]['eta_sample']
+        else:
+            print 'cursor is closed.'
+    else:
+        print 'Query MTA historical: Table is closed'
+
 
 ###############################################################################
 

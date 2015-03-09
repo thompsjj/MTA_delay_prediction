@@ -8,6 +8,7 @@ Created on Tue Feb 24 08:23:34 2015
 import numpy as np
 from collections import defaultdict
 from uniquelist import uniquelist
+import itertools
 from itertools import cycle
 from datetime_handlers import timedelta_from_timestring, \
 timestamp_from_timept, set_ref_to_datetime, datetime_from_timept, \
@@ -18,6 +19,14 @@ import sys, os
 from datetime import date
 from dateutil.rrule import rrule, DAILY
 
+import time
+
+from mta_database_handlers import query_mta_historical_closest_train_between
+from multiprocessing import Pool, cpu_count
+from sql_interface import sample_local_db_dict_cursor
+import psycopg2, threading
+from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 class Station(object):
 
@@ -108,10 +117,8 @@ class MTAStation(Station):
                     timedelta_from_timestring(hour+':'+minute+':00')
 
                     # calculate point greater than zero but closest to 0
-                    check_pt = \
-                    [z for z in zip((schedule_today-current_sample_pt),\
-                     schedule_today)\
-                      if z[0] > timedelta_from_timestring('00:00:00')]
+                    check_pt = [z for z in zip((schedule_today-current_sample_pt), schedule_today) if z[0] > timedelta_from_timestring('00:00:00')]
+
 
                     if len(check_pt) > 0:
                         closest_train = min(check_pt, key=lambda x: x[0])[0]
@@ -141,7 +148,9 @@ class MTAStation(Station):
 
 
     def sample_history_from_db(self, cursor, startdate, enddate):
-        from mta_database_handlers import query_mta_historical_closest_train
+        from mta_database_handlers import query_mta_historical_closest_train_between
+        from multiprocessing import Pool, freeze_support
+
 
         s = startdate.split('-')
         startyr = int(s[0])
@@ -156,33 +165,100 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
+        max_tstamp = timestamp_from_refdt(self.hourtypes[-1],self.sample_points[-1],b,'US/Eastern')+3600
 
+        interval = []
+        #unroll inner loop
+        for hour in self.hourtypes:
+            for minute in self.sample_points:
+                interval.append((hour, minute))
+
+        start_outer = time.clock()
         for dt in rrule(DAILY, dtstart=a, until=b):
-            print 'station %s accessing: %s' % \
             (self.station_id, dt.strftime("%Y-%m-%d"))
 
             day = self.days[dt.weekday()]
-            
-            for hour in self.hourtypes:
-                for minute in self.sample_points:
+         
+            for interv in interval:
 
-                    #it is unclear how or where DST needs to be handled here
+                    #response = query_mta_historical_closest_train(cursor,'mta_historical_small', self.station_id, current_tstamp, 120)
 
-                    current_tstamp = timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
+                current_tstamp = timestamp_from_refdt(interv[0], interv[1], dt,'US/Eastern')+3600
+                response = query_mta_historical_closest_train_between(cursor,'mta_historical_small', self.station_id, current_tstamp, max_tstamp)
 
-                    response = query_mta_historical_closest_train(\
-                        cursor,'mta_historical_small', self.station_id,\
-                         current_tstamp, 120)
 
-                    if response:
-                        self.historical_schedule[day][hour][minute].append(response)
-                        print response
-                    else:
-                        self.historical_schedule[day][hour][minute].append(0)
+                self.historical_schedule[day][hour][minute].append(response)
 
-        print 'station %s ' % (self.station_id)
-        print self.historical_schedule[day]
+                    #print "request time: %s"  % (time.clock() - start_inner_3)
+
+               #if response:
+                #    self.historical_schedule[day][hour][minute].append(response)
+                        #print "station: %s response: %s tstamp: %s"  % (self.station_id, response, current_tstamp)
+                #else:
+                 #   self.historical_schedule[day][hour][minute].append(0)'''
+
+
+                #print "minute loop: %s" % (time.clock() - start_inner_2)
+
+            #print "hour loop: %s" % (time.clock() - start_inner_2)
+
+        print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
 
             #now the schedule is set for seconds past the timestamp
+
+    def sample_history_from_db_threaded(self, startdate, enddate, database, \
+        table_name, user, host, password):
+
+
+        s = startdate.split('-')
+        startyr = int(s[0])
+        startmo = int(s[1])
+        startday = int(s[2])
+
+        e = enddate.split('-')
+        endyr = int(e[0])
+        endmo = int(e[1])
+        endday = int(e[2])
+
+        a = date(startyr, startmo, startday)
+        b = date(endyr, endmo, endday)
+
+        max_tstamp = timestamp_from_refdt(self.hourtypes[-1],self.sample_points[-1],b,'US/Eastern')+3600
+
+        sample_tstamp = []
+
+        for dt in rrule(DAILY, dtstart=a, until=b):
+            for hour in self.hourtypes:
+                for minute in self.sample_points:
+                    sample_tstamp.append(timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600)
+                
+        def select_func(conn_or_pool, table_name, station_id, start_tstamp, stop_tstamp):
+            name = threading.currentThread().getName()
+            
+            for i in range(SELECT_SIZE):
+                try:
+                    conn = conn_or_pool.getconn()
+                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                    c = conn.cursor()
+
+                    query = "SELECT * FROM %s WHERE stop_id='%s' \
+                        AND reference BETWEEN %s AND %s \
+                        ORDER BY eta_sample ASC;" \
+                        % (table_name, station_id, start_tstamp, finish_tstamp)
+
+                    c.execute(query)
+                    l = c.fetchall()
+                    conn_or_pool.putconn(conn)
+
+                    s = name + ": number of rows fetched: " + str(len(l))
+                    print s
+                except psycopg2.ProgrammingError, err:
+                    print name, ": an error occurred; skipping this select"
+                    print err
+
+
+
+
+
 
 

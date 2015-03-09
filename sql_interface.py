@@ -37,10 +37,9 @@ def connect_to_local_db(name, user, password='user'):
 
     return cursor, conn
 
-def connect_to_local_db_dict_cursor(name, user, password='user'):
+def sample_local_db_dict_cursor(name, user, password='user'):
     try:
         conn = psycopg2.connect(database=name, user=user, host='localhost', password=password)
-        conn.autocommit=True
     except:
         print "Unable to connect to the database"
     
@@ -51,8 +50,6 @@ def connect_to_local_db_dict_cursor(name, user, password='user'):
         print(table)
 
     return cursor, conn
-
-
 
 def table_exists(cur, table_str):
     exists = False

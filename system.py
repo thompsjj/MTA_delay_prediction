@@ -82,8 +82,9 @@ class MTASystem(System):
     def sample_arrival_times_from_db(self, cursor, start_date, end_date):
 
         for stid, stn in self.station.iteritems():
-            stn.sample_history_from_db(cursor, start_date, end_date)
 
+            #stn.sample_history_from_db(cursor, start_date, end_date)
+            stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
 
     def _read_topology(self, topology):
 

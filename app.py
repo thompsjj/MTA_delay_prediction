@@ -5,7 +5,7 @@ from topology import Topology
 from system import System, MTASystem
 import psycopg2
 from psycopg2.extras import DictCursor
-from sql_interface import connect_to_local_db, connect_to_local_db_dict_cursor
+from sql_interface import connect_to_local_db, sample_local_db_dict_cursor
 
 def main(argv):
 
@@ -56,14 +56,31 @@ def main(argv):
     mta_system.build(route_topology, None, reference_date)
 
 
-    # attach to historical db
-    
-    cursor, conn = connect_to_local_db_dict_cursor('mta_historical','postgres')
+
+    cursor, conn = connect_to_local_db('mta_historical','postgres')
+
+    try:
+        cursor.execute("CREATE INDEX stid ON mta_historical_small USING gin (to_tsvector('english',stop_id));")
+    except Exception, e:
+        print e
+
+    try:
+        cursor.execute("CREATE INDEX ON mta_historical_small USING btree (reference);")
+    except Exception, e:
+        print e
+
+
+    cursor.close()
+    conn.close()
+
+
+
+    cursor, conn = sample_local_db_dict_cursor('mta_historical','postgres')
 
 
     #map arrivals times to stations
 
-    mta_system.sample_arrival_times_from_db(cursor, '2014-09-30', '2014-10-02')
+    mta_system.sample_arrival_times_from_db(cursor, '2014-10-15', '2014-10-16')
 
 
     #stations own delays per schedule, or pattern of delays per sample. Both
