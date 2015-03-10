@@ -26,7 +26,34 @@ from multiprocessing import Pool, cpu_count
 from sql_interface import sample_local_db_dict_cursor
 import psycopg2, threading
 from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.extensions import ISOLATION_LEVEL_READ_UNCOMMITTED, ISOLATION_LEVEL_READ_COMMITTED
+from psycopg2.extras import DictCursor
+
+
+class ProcessSafePoolManager:
+ 
+    def __init__(self, *args, **kwargs):
+        self.last_seen_process_id = os.getpid()
+        self.args = args
+        self.kwargs = kwargs
+        self._init()
+ 
+    def _init(self):
+        self._pool = ThreadedConnectionPool(*self.args, **self.kwargs)
+ 
+    def getconn(self):
+        current_pid = os.getpid()
+        if not (current_pid == self.last_seen_process_id):
+            self._init()
+            print "New id is %s, old id was %s" % (current_pid, self.last_seen_process_id)
+            self.last_seen_process_id = current_pid
+        return self._pool.getconn()
+ 
+    def putconn(self, conn):
+        return self._pool.putconn(conn)
+ 
+    #pool = ProcessSafePoolManager(1, 10, "host='127.0.0.1' port=12099")
+
 
 class Station(object):
 
@@ -75,6 +102,7 @@ class MTAStation(Station):
         self.sample_points = ['01','06','11','16','21','26','31','36','41',\
         '46','51','56']
 
+        self._delay_schedule = None
 
     #this is MTA 26H specific and should be in a descendent class
     def _pass_schedule_to_timedelta(self, ext_schedule):
@@ -209,6 +237,7 @@ class MTAStation(Station):
     def sample_history_from_db_threaded(self, startdate, enddate, database, \
         table_name, user, host, password):
 
+        start_outer = time.clock()
 
         s = startdate.split('-')
         startyr = int(s[0])
@@ -227,22 +256,25 @@ class MTAStation(Station):
 
         sample_tstamp = []
         THREAD_NAMES = []
+        sample_names = []
         for dt in rrule(DAILY, dtstart=a, until=b):
             for hour in self.hourtypes:
                 for minute in self.sample_points:
                     sample_tstamp.append(timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600)
                     THREAD_NAMES.append("Thread: %s :: %s :%s:%s" % (self.station_id, dt.strftime("%Y-%m-%d"), hour, minute))
+                    sample_names.append((dt, hour, minute))
         
         #####################Threading Functions Here###########################
 
+        ## PRIMARY FUNCTION ##
 
         def select_func(conn_or_pool, table_name, station_id, start_tstamp, stop_tstamp):
             name = threading.currentThread().getName()
             
             try:
                 conn = conn_or_pool.getconn()
-                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                c = conn.cursor()
+                conn.set_isolation_level(ISOLATION_LEVEL_READ_UNCOMMITTED)
+                c = conn.cursor(cursor_factory=DictCursor)
 
                 query = "SELECT * FROM %s WHERE stop_id='%s' \
                         AND reference BETWEEN %s AND %s \
@@ -254,36 +286,124 @@ class MTAStation(Station):
 
                 conn_or_pool.putconn(conn)
 
-                s = name + ": number of rows fetched: " + str(len(l))
-                print name
-                print s
+                #s = name + ": number of rows fetched: " + str(len(l))
+                #print name
+                #print s
+
+                if not l:
+                    c.close()
+                    conn.close()
+                    return 0
+                else:
+                    c.close()
+                    conn.close()
+                    return l[0]['eta_sample']
+
             except psycopg2.ProgrammingError, err:
                 print name, ": an error occurred; skipping this select"
                 print err
-            finally:
-                c.close()
+
+        ## WRAPPER ##
+
+        def wrapper(func, args, name, result):
+            result.append((name, func(*args)))
+
+        ## GROUPER ##
+
+        def chunker(seq, size):
+            return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
 
-        ## OPEN CONNECTION ##
-        min_t = 1
-        max_t = len(THREAD_NAMES)
-        conn_select = ThreadedConnectionPool(min_t, max_t, database=database, user=user, host=host, password=password)
-
-        ## JOIN THREADS ##
+        CHUNK_SIZE = 150
 
         threads = []
-        for i, name in enumerate(THREAD_NAMES):
-            t = threading.Thread(None, select_func, 'Thread-'+name,
-                         (conn_select, table_name, self.station_id, sample_tstamp[i],max_tstamp))
-            t.setDaemon(0)
-            threads.append(t)
+        results = []
 
-        for t in threads:
-            t.start()
+        ## CHUNK THREADS INTO FLIGHTS ##
 
-        for t in threads:
-            t.join()
-            print t.getName(), "exited OK"
+        for c, chunk in enumerate(chunker(THREAD_NAMES, CHUNK_SIZE)):
+            #print "chunk %s" % c
+            min_t = 1
+            max_t = CHUNK_SIZE
+            threads = []
+            res = []
+
+            ## OPEN CONNECTION ##
+
+            conn_select = ThreadedConnectionPool(min_t, max_t, database=database, user=user, host=host, password=password, async=0)
+
+
+            ## JOIN THREADS ##
+
+            for i, name in enumerate(chunk):
+                t = threading.Thread(target=wrapper, name='Thread-'+name, \
+                             args=( select_func,(conn_select, table_name, \
+                self.station_id, sample_tstamp[i+c*CHUNK_SIZE],max_tstamp), \
+                sample_names[i+c*CHUNK_SIZE], res))
+
+                t.setDaemon(0)
+                threads.append(t)
+
+            for i, t in enumerate(threads):
+                t.start()
+
+            for i, t in enumerate(threads):
+                t.join()
+                print t.getName(), "exited OK"
+
+            results.extend(res)
+            conn_select.closeall()
+
+        for i, result in enumerate(results):
+            day = result[0][0]
+            hour = result[0][1]
+            minute = result[0][2]
+            self.historical_schedule[day][hour][minute].append(result[1])
+
+
+
+        print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
+        print results
+
+
+    def compute_delay_histograms(self, nbins, paradigm, aggregate_wkdays=False):
+
+        '''Calculates the delay histograms from histories and conformal schedule
+        stored to the object. Uses a delay paradigm, either projective or literal
+        INPUT: self, int (number of bins)  (schedules as stored in object)
+        OUTPUT: bool (success) (delay histos are stored back to object)'''
+
+
+        self._delay_schedule = np.zeros()
+
+
+        if paradigm in ['l','lit','literal']:
+
+
+            for d, day in enumerate(self.days):
+                for h, hour in enumerate(self.hourtypes):
+                    for m, minute in enumerate(self.sample_points):
+
+                        c = self.conf_schedule[day][hour][minute]
+                        delay_vec = [v-c if v-c > 0 else 0 for v in self.historical_schedule[day][hour][minute]]
+                        self._delay_schedule[day][hour][minute] = numpy.histogram(delay_vec, nbins)
+                       
+
+
+
+        elif paradigm in ['p','pro','projective']:
+            for d, day in enumerate(self.days):
+                for h, hour in enumerate(self.hourtypes):
+                    for m, minute in enumerate(self.sample_points):
+
+
+
+
+        else:
+            print "delay paradigm not recognized."
+
+
+        pass 
 
 
 

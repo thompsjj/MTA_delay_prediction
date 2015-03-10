@@ -79,13 +79,31 @@ class MTASystem(System):
         self.isBuilt = False
         self.station = defaultdict()
 
-    def sample_arrival_times_from_db(self, cursor, start_date, end_date):
+
+    def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
 
         for stid, stn in self.station.iteritems():
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-            stn.sample_history_from_db_threaded( start_date, end_date, 'mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+            stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
+
+    def load_history_from_pickle(self):
+        pass
+
+    def compute_delay_histograms(self):
+
+        for stid, stn in self.station.iteritems():
+
+            #stn.sample_history_from_db(cursor, start_date, end_date)
+            #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+            stn.compute_delay_histograms()   
+
+
+        pass
+
+
+
 
 
     def _read_topology(self, topology):

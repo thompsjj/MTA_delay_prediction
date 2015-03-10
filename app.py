@@ -60,8 +60,6 @@ def main(argv):
     cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
 
 
-
-
     try:
         cursor.execute("CREATE INDEX stid ON mta_historical_small USING gin (to_tsvector('english',stop_id));")
     except Exception, e:
@@ -77,15 +75,26 @@ def main(argv):
     conn.close()
 
 
-    sys.exit(0)
 
-
-    cursor, conn = sample_local_db_dict_cursor('mta_historical','postgres')
+    #cursor, conn = sample_local_db_dict_cursor('mta_historical','postgres')
 
 
     #map arrivals times to stations
 
-    mta_system.sample_arrival_times_from_db(cursor, '2014-10-15', '2014-10-16')
+    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-16','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+
+
+    mta_system.pickle_historical_schedule()
+
+
+    mta_system.compute_delay_histograms()
+
+
+    mta_system.pickle_delay_histograms()
+
+
+    mta_system.discrete_bayesian()
+
 
 
     #stations own delays per schedule, or pattern of delays per sample. Both
