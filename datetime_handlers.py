@@ -66,6 +66,14 @@ def trip_day_from_timestamp(timestamp):
     daydict = {0:'WKD',1:'WKD',2:'WKD',3:'WKD',4:'WKD',5:'SAT',6:'SUN'}
     return daydict[datetime.fromtimestamp(timestamp).weekday()]
 
+def trip_hour_from_timestamp(timestamp, hourdict):
+
+    return hourdict[datetime.fromtimestamp(timestamp).hour]
+
+def trip_minute_from_timestamp(timestamp, minutedict):
+
+    return minutedict[datetime.fromtimestamp(timestamp).minute]
+
 
 def datetime_diff_to_timedelta(end_pt_timestruct, start_pt_datetime):
 

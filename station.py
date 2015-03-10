@@ -13,46 +13,29 @@ from itertools import cycle
 from datetime_handlers import timedelta_from_timestring, \
 timestamp_from_timept, set_ref_to_datetime, datetime_from_timept, \
 timestamp_from_refdt
-from copy import copy
+import copy
 import sys, os
 
 from datetime import date
 from dateutil.rrule import rrule, DAILY
 
 import time
+import datetime
 
 from mta_database_handlers import query_mta_historical_closest_train_between
 from multiprocessing import Pool, cpu_count
 from sql_interface import sample_local_db_dict_cursor
 import psycopg2, threading
 from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extensions import ISOLATION_LEVEL_READ_UNCOMMITTED, ISOLATION_LEVEL_READ_COMMITTED
+from psycopg2.extensions import ISOLATION_LEVEL_READ_UNCOMMITTED, ISOLATION_LEVEL_READ_COMMITTED, ISOLATION_LEVEL_AUTOCOMMIT
 from psycopg2.extras import DictCursor
 
 
-class ProcessSafePoolManager:
- 
-    def __init__(self, *args, **kwargs):
-        self.last_seen_process_id = os.getpid()
-        self.args = args
-        self.kwargs = kwargs
-        self._init()
- 
-    def _init(self):
-        self._pool = ThreadedConnectionPool(*self.args, **self.kwargs)
- 
-    def getconn(self):
-        current_pid = os.getpid()
-        if not (current_pid == self.last_seen_process_id):
-            self._init()
-            print "New id is %s, old id was %s" % (current_pid, self.last_seen_process_id)
-            self.last_seen_process_id = current_pid
-        return self._pool.getconn()
- 
-    def putconn(self, conn):
-        return self._pool.putconn(conn)
- 
-    #pool = ProcessSafePoolManager(1, 10, "host='127.0.0.1' port=12099")
+import signal, threading, time
+
+from mta_database_handlers import query_mta_historical_closest_train
+
+import dill as pickle
 
 
 class Station(object):
@@ -77,7 +60,6 @@ class Station(object):
 
 
 class MTAStation(Station):
-    from mta_database_handlers import query_mta_historical_closest_train
     def __init__(self, station_id):
         super(MTAStation, self).__init__(station_id)
         self.station_id = station_id
@@ -86,12 +68,8 @@ class MTAStation(Station):
         self.in_collection = False
         self.schedule = defaultdict(list)
         self.schedule_set = False
-        self.conf_schedule = \
-        defaultdict(lambda : defaultdict(lambda : defaultdict()))
-        self.historical_schedule = \
-                defaultdict(lambda : defaultdict(lambda : defaultdict(list)))      
-
-
+        self.conf_schedule = defaultdict(lambda : defaultdict(lambda : defaultdict()))
+        self.historical_schedule = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))      
 
         self.days = ['MON','TUE','WED', 'THU', 'FRI', 'SAT','SUN']
 
@@ -175,6 +153,15 @@ class MTAStation(Station):
 
 
 
+    event = threading.Event()
+
+    def handler(signum, _frame):    
+        # global event
+        # event.set()
+        print('Signal handler called with signal [%s]' % signum)
+
+
+
     def sample_history_from_db(self, cursor, startdate, enddate):
         from mta_database_handlers import query_mta_historical_closest_train_between
         from multiprocessing import Pool, freeze_support
@@ -209,30 +196,13 @@ class MTAStation(Station):
          
             for interv in interval:
 
-                    #response = query_mta_historical_closest_train(cursor,'mta_historical_small', self.station_id, current_tstamp, 120)
-
                 current_tstamp = timestamp_from_refdt(interv[0], interv[1], dt,'US/Eastern')+3600
                 response = query_mta_historical_closest_train_between(cursor,'mta_historical_small', self.station_id, current_tstamp, max_tstamp)
 
-
                 self.historical_schedule[day][hour][minute].append(response)
-
-                    #print "request time: %s"  % (time.clock() - start_inner_3)
-
-               #if response:
-                #    self.historical_schedule[day][hour][minute].append(response)
-                        #print "station: %s response: %s tstamp: %s"  % (self.station_id, response, current_tstamp)
-                #else:
-                 #   self.historical_schedule[day][hour][minute].append(0)'''
-
-
-                #print "minute loop: %s" % (time.clock() - start_inner_2)
-
-            #print "hour loop: %s" % (time.clock() - start_inner_2)
 
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
 
-            #now the schedule is set for seconds past the timestamp
 
     def sample_history_from_db_threaded(self, startdate, enddate, database, \
         table_name, user, host, password):
@@ -273,7 +243,7 @@ class MTAStation(Station):
             
             try:
                 conn = conn_or_pool.getconn()
-                conn.set_isolation_level(ISOLATION_LEVEL_READ_COMMITTED)
+                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
                 c = conn.cursor(cursor_factory=DictCursor)
 
                 query = "SELECT * FROM %s WHERE stop_id='%s' \
@@ -284,19 +254,16 @@ class MTAStation(Station):
                 c.execute(query)
                 l = c.fetchall()
 
-                conn_or_pool.putconn(conn)
+                conn.commit()
+                conn_or_pool.putconn(conn,close=True)
 
                 #s = name + ": number of rows fetched: " + str(len(l))
                 #print name
                 #print s
 
                 if not l:
-                    c.close()
-                    conn.close()
                     return 0
                 else:
-                    c.close()
-                    conn.close()
                     return l[0]['eta_sample']
 
             except psycopg2.ProgrammingError, err:
@@ -314,7 +281,7 @@ class MTAStation(Station):
             return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
 
-        CHUNK_SIZE = 150
+        CHUNK_SIZE = 75
 
         threads = []
         results = []
@@ -330,6 +297,7 @@ class MTAStation(Station):
 
             ## OPEN CONNECTION ##
 
+
             conn_select = ThreadedConnectionPool(min_t, max_t, database=database, user=user, host=host, password=password, async=0)
 
 
@@ -337,7 +305,7 @@ class MTAStation(Station):
 
             for i, name in enumerate(chunk):
                 t = threading.Thread(target=wrapper, name='Thread-'+name, \
-                             args=( select_func,(conn_select, table_name, \
+                                 args=( select_func,(conn_select, table_name, \
                 self.station_id, sample_tstamp[i+c*CHUNK_SIZE],max_tstamp), \
                 sample_names[i+c*CHUNK_SIZE], res))
 
@@ -355,18 +323,16 @@ class MTAStation(Station):
             conn_select.closeall()
 
         for i, result in enumerate(results):
-            day = result[0][0]
+            day = self.days[result[0][0].weekday()]
             hour = result[0][1]
             minute = result[0][2]
             self.historical_schedule[day][hour][minute].append(result[1])
 
-
-
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
-        print results
+        print self.historical_schedule['WED']
 
 
-    def compute_delay_histograms(self, nbins, paradigm, aggregate_wkdays=False):
+    def compute_delay_histograms(self, nbins, paradigm, startdate, enddate, aggregate_wkdays=False):
 
         '''Calculates the delay histograms from histories and conformal schedule
         stored to the object. Uses a delay paradigm, either projective or literal
@@ -374,21 +340,56 @@ class MTAStation(Station):
         OUTPUT: bool (success) (delay histos are stored back to object)'''
 
 
-        self._delay_schedule = np.zeros(len(self.days), len(self.hourtypes), len(self.sample_points), nbins)
 
+        self._delay_schedule = np.zeros((len(self.days), len(self.hourtypes), len(self.sample_points), nbins))
+
+        print self.station_id
+
+        s = startdate.split('-')
+        startyr = int(s[0])
+        startmo = int(s[1])
+        startday = int(s[2])
+
+        e = enddate.split('-')
+        endyr = int(e[0])
+        endmo = int(e[1])
+        endday = int(e[2])
+
+        a = date(startyr, startmo, startday)
+        b = date(endyr, endmo, endday)
 
         if paradigm in ['l','lit','literal']:
-
-
-            for d, day in enumerate(self.days):
+            for dt in rrule(DAILY, dtstart=a, until=b):
+                day = self.days[dt.weekday()]
                 for h, hour in enumerate(self.hourtypes):
                     for m, minute in enumerate(self.sample_points):
+                        ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
+                        c = float(self.conf_schedule[day][hour][minute].seconds)+ref
 
-                        c = self.conf_schedule[day][hour][minute]
-                        delay_vec = [v-c if v-c > 0 else 0 for v in self.historical_schedule[day][hour][minute]]
-                        self._delay_schedule[day,hour,minute] = numpy.histogram(np.asrray(delay_vec).astype(float), nbins)
+                        #here the timestamp needs to be compared to a timestamp c value or viceversa
+
+                        delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
+                        
+                        print '%s:%s - %s' % (hour, minute, delay_vec)
+
+                        self._delay_schedule[dt.weekday()][h][m] = np.histogram(np.asarray(delay_vec).astype(float), nbins)[0]
         else:
             print "delay paradigm not recognized."
 
+
+    def save_delay_histos(self, timestamp):
+        if np.any(self._delay_schedule):
+
+            with open('%s_%s_MTA_delay_histo.pkl' %(timestamp, self.station_id),'wb') as outfile:
+                pickle.dump(self._delay_schedule,outfile)
+
+            with open('%s_%s_MTA_day_points.pkl' %(timestamp, self.station_id),'wb') as outfile:
+                pickle.dump(self.days,outfile)
+
+            with open('%s_%s_MTA_hour_points.pkl' %(timestamp, self.station_id),'wb') as outfile:
+                pickle.dump(self.hourtypes,outfile)
+
+            with open('%s_%s_MTA_minute_sample_points.pkl' %(timestamp, self.station_id),'wb') as outfile:
+                pickle.dump(self.sample_points,outfile)
 
 

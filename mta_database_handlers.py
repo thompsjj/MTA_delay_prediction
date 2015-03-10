@@ -76,13 +76,9 @@ def query_mta_historical_closest_train(cur, table_name, station_id, sample_tstam
                 SELECT * FROM stop_info \
                 WHERE diff > 0 \
                 ORDER BY diff ASC;" % (sample_tstamp, table_name, station_id)
-
-
-
             #query = "SELECT * FROM mta_historical_small WHERE stop_id='126N' AND reference BETWEEN %s AND %s;" 
 
            #print query
-
             cur.execute(query)
             response = cur.fetchall()
             if not response:

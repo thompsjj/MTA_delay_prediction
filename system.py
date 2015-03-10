@@ -9,6 +9,8 @@ from topology import Topology
 from collections import defaultdict
 from station import Station, MTAStation
 import sys, os
+import numpy as np
+import time, datetime
 # The system structure owns all lines, stations and trips, 
 # and it owns all update methods from the top down. 
 
@@ -40,6 +42,7 @@ class System(object):
 
         try:
             self._read_topology(topology)
+
             if schedule:
                 self._populate_stations(schedule, reference_date)
                 self.isBuilt = True
@@ -62,8 +65,12 @@ class System(object):
         '''This function takes a station id and sets its schedule for all
         trains and trips for every day that belong to this station'''
 
+
         for stid, stn in self.station.iteritems():
-            stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
+
+            if stid in ['126N','127N','128N']: #remove after scale up
+
+                stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
 
     def __repr__(self):
         print self.isBuilt
@@ -83,28 +90,25 @@ class MTASystem(System):
     def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
 
         for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: # remove after scale up
 
-            #stn.sample_history_from_db(cursor, start_date, end_date)
-            #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-            stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
+                #stn.sample_history_from_db(cursor, start_date, end_date)
+                #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+                stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
 
-    def load_history_from_pickle(self):
-        pass
 
-    def compute_delay_histograms(self):
+
+
+    def compute_delay_histograms(self,start_date, end_date):
 
         for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: # remove after scale up
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-            stn.compute_delay_histograms(10,'l')
+                stn.compute_delay_histograms(10,'l',start_date, end_date)
 
-
-            print "complete station id: %s num_nonzero: %s" % (np.count_nonzero(stn._delay_schedule))
-
-
-
-
+                print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
 
     def _read_topology(self, topology):
 
@@ -115,6 +119,22 @@ class MTASystem(System):
 
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
+
+
+
+    def save_snapshot(self):
+        tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
+        for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: #remove after scale up
+                stn.save_delay_histos(tmstmp)
+
+
+    def discrete_bayesian(self):
+        
+
+
+
+
 
 
 
