@@ -97,10 +97,10 @@ class MTASystem(System):
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-            stn.compute_delay_histograms()   
+            stn.compute_delay_histograms(10,'l')
 
 
-        pass
+            print "complete station id: %s num_nonzero: %s" % (np.count_nonzero(stn._delay_schedule))
 
 
 

@@ -81,19 +81,19 @@ def main(argv):
 
     #map arrivals times to stations
 
-    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-16','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-15','mta_historical','mta_test', 'postgres', 'localhost', 'postgres')
 
 
-    mta_system.pickle_historical_schedule()
+    #mta_system.pickle_historical_schedule()
 
 
     mta_system.compute_delay_histograms()
 
 
-    mta_system.pickle_delay_histograms()
+    #mta_system.pickle_delay_histograms()
 
 
-    mta_system.discrete_bayesian()
+    #mta_system.discrete_bayesian()
 
 
 

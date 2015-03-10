@@ -273,7 +273,7 @@ class MTAStation(Station):
             
             try:
                 conn = conn_or_pool.getconn()
-                conn.set_isolation_level(ISOLATION_LEVEL_READ_UNCOMMITTED)
+                conn.set_isolation_level(ISOLATION_LEVEL_READ_COMMITTED)
                 c = conn.cursor(cursor_factory=DictCursor)
 
                 query = "SELECT * FROM %s WHERE stop_id='%s' \
@@ -374,7 +374,7 @@ class MTAStation(Station):
         OUTPUT: bool (success) (delay histos are stored back to object)'''
 
 
-        self._delay_schedule = np.zeros()
+        self._delay_schedule = np.zeros(len(self.days), len(self.hourtypes), len(self.sample_points), nbins)
 
 
         if paradigm in ['l','lit','literal']:
@@ -386,24 +386,9 @@ class MTAStation(Station):
 
                         c = self.conf_schedule[day][hour][minute]
                         delay_vec = [v-c if v-c > 0 else 0 for v in self.historical_schedule[day][hour][minute]]
-                        self._delay_schedule[day][hour][minute] = numpy.histogram(delay_vec, nbins)
-                       
-
-
-
-        elif paradigm in ['p','pro','projective']:
-            for d, day in enumerate(self.days):
-                for h, hour in enumerate(self.hourtypes):
-                    for m, minute in enumerate(self.sample_points):
-
-
-
-
+                        self._delay_schedule[day,hour,minute] = numpy.histogram(np.asrray(delay_vec).astype(float), nbins)
         else:
             print "delay paradigm not recognized."
-
-
-        pass 
 
 
 
