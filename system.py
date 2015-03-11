@@ -90,7 +90,7 @@ class MTASystem(System):
     def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
 
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: # remove after scale up
+            if stid in ['126N','127N','128N','129N','130N']: # remove after scale up
 
                 #stn.sample_history_from_db(cursor, start_date, end_date)
                 #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
@@ -102,7 +102,7 @@ class MTASystem(System):
     def compute_delay_histograms(self,start_date, end_date):
 
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: # remove after scale up
+            if stid in ['126N','127N','128N','129N','130N']: # remove after scale up
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
@@ -125,20 +125,13 @@ class MTASystem(System):
     def save_snapshot(self):
         tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: #remove after scale up
+            if stid in ['126N','127N','128N','129N','130N']: #remove after scale up
                 stn.save_delay_histos(tmstmp)
 
 
     def discrete_bayesian(self):
-        
 
-
-
-
-
-
-
-
-
-
+        for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N','129N','130N']: #remove after scale up
+                stn.save_delay_histos(tmstmp)
 

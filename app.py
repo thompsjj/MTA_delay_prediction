@@ -71,24 +71,25 @@ def main(argv):
 
     #map arrivals times to stations
 
-    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-15','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-30','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
 
-    #mta_system.pickle_historical_schedule()
-
-
-    mta_system.compute_delay_histograms('2014-10-15', '2014-10-15')
+    mta_system.compute_delay_histograms('2014-10-15', '2014-10-30')
 
 
     mta_system.save_snapshot()
 
 
-    #mta_system.discrete_bayesian(target_file)
+    ##### LOAD FROM PICKLED SCHEDULES #####
+
+
+    
+   # mta_system.discrete_bayesian(target_file)
 
 
     # libpgm loads and produces first predictions
 
-
+   # pgm_model.predict_discrete_bayesian(target_file)
 
 
 #possibly create a run function as a method of a class for the updated 
