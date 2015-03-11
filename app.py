@@ -35,11 +35,11 @@ def main(argv):
 
     route_topology = Topology()
 
-
     # the topology can be updated with as many routes and joinfiles as desired
     # here we are just testing route 1
 
     route_topology.add_mta_route(mta_routes.get_route('1'),'1')
+
 
     # construct a system from topofile
     reference_date = '2013-12-15-6-349-0-0-0'
@@ -48,6 +48,13 @@ def main(argv):
     mta_system.build(route_topology, mta_routes, reference_date)
 
     #mta_system.build(route_topology, None, reference_date)
+
+    for stid, station in enumerate(mta_system.station):
+        print mta_system.station[stid].neighbor_stations
+
+
+    sys.exit(0)
+
 
     cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
 
@@ -70,12 +77,9 @@ def main(argv):
 
 
     #map arrivals times to stations
-
     mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-30','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
-
     mta_system.compute_delay_histograms('2014-10-15', '2014-10-30')
-
 
     mta_system.save_snapshot()
 

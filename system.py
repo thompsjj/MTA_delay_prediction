@@ -132,6 +132,6 @@ class MTASystem(System):
     def discrete_bayesian(self):
 
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N','129N','130N']: #remove after scale up
-                stn.save_delay_histos(tmstmp)
+            if stid in ['126N','127N','128N','129N','130N']:
+                
 
