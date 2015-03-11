@@ -85,6 +85,8 @@ class MTASystem(System):
         self.num_stations = 0
         self.isBuilt = False
         self.station = defaultdict()
+        self.num_histo_bins = None
+        self.num_delay_histo_bins = None
 
 
     def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
@@ -99,14 +101,14 @@ class MTASystem(System):
 
 
 
-    def compute_delay_histograms(self,start_date, end_date):
-
+    def compute_delay_histograms(self,start_date, end_date,nbins):
+        self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N','129N','130N']: # remove after scale up
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-                stn.compute_delay_histograms(10,'l',start_date, end_date)
+                stn.compute_delay_histograms(nbins,'l',start_date, end_date)
 
                 print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
 
@@ -119,6 +121,10 @@ class MTASystem(System):
 
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
+                self.station[e[0]].child_stations.append(e[1])
+
+            for e in topology.edges:
+                self.station[e[1]].parent_stations.append(e[0])
 
 
 
@@ -129,9 +135,51 @@ class MTASystem(System):
                 stn.save_delay_histos(tmstmp)
 
 
+
+
+
+    def save_delay_state_file(self):
+        outputdict = {}
+
+
+        ### OUTPUT VERTICES AND EDGES ###
+
+        outputdict["V"] = []
+        outputdict["E"] = []
+
+        for stid, station in mta_system.station.iteritems():
+            outputdict["V"].append(stid)
+            edge_set = []
+            for stid_e in station.neighbor_stations:
+                edge_set.append([stid,stid_e])
+            outputdict["E"].append(edge_set)
+
+
+        outputdict["Vdata"] = {}
+
+        for stid, station in mta_system.station.iteritems():
+             outputdict["Vdata"][stid] = {}
+             outputdict["Vdata"]["numoutcomes"] = self.num_delay_histo_bins
+             outputdict["Vdata"]["vals"] = [hex(x) for x in xrange(0,self.num_delay_histo_bins)]
+             outputdict["Vdata"]["parents"] = self.parent_stations
+             outputdict["Vdata"]["children"] = self.child_stations
+
+             ########## BUILD CPROB HERE #################
+
+
+
+
     def discrete_bayesian(self):
 
-        for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N','129N','130N']:
-                
+
+
+
+
+
+
+        pass
+
+
+
+
 

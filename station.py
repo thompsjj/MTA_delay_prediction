@@ -64,6 +64,8 @@ class MTAStation(Station):
         super(MTAStation, self).__init__(station_id)
         self.station_id = station_id
         self.neighbor_stations = uniquelist()
+        self.child_stations = uniquelist()
+        self.parent_stations = uniquelist()
         self.collecting = False
         self.in_collection = False
         self.schedule = defaultdict(list)

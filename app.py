@@ -49,11 +49,10 @@ def main(argv):
 
     #mta_system.build(route_topology, None, reference_date)
 
-    for stid, station in enumerate(mta_system.station):
-        print mta_system.station[stid].neighbor_stations
-
-
-    sys.exit(0)
+  '''  for stid, station in mta_system.station.iteritems():
+        print 'station: %s' % stid
+        for i in station.neighbor_stations:
+            print i'''
 
 
     cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
@@ -69,7 +68,6 @@ def main(argv):
     except Exception, e:
         print e
 
-
     cursor.close()
     conn.close()
 
@@ -79,7 +77,7 @@ def main(argv):
     #map arrivals times to stations
     mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-30','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
-    mta_system.compute_delay_histograms('2014-10-15', '2014-10-30')
+    mta_system.compute_delay_histograms('2014-10-15', '2014-10-30',10)
 
     mta_system.save_snapshot()
 
@@ -87,7 +85,11 @@ def main(argv):
     ##### LOAD FROM PICKLED SCHEDULES #####
 
 
-    
+    #######################################
+
+
+
+
    # mta_system.discrete_bayesian(target_file)
 
 
