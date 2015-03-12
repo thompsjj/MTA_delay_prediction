@@ -49,12 +49,6 @@ def main(argv):
 
     #mta_system.build(route_topology, None, reference_date)
 
-  '''  for stid, station in mta_system.station.iteritems():
-        print 'station: %s' % stid
-        for i in station.neighbor_stations:
-            print i'''
-
-
     cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
 
 
@@ -77,9 +71,9 @@ def main(argv):
     #map arrivals times to stations
     mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-15','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
-    mta_system.compute_delay_histograms('2014-10-15', '2014-10-15',10)
+    mta_system.compute_delay_histograms('l','2014-10-15', '2014-10-15',10)
 
-    mta_system.compute_delay_state_diagrams('l')
+    mta_system.compute_delay_state_diagrams('l','2014-10-15', '2014-10-15',10)
 
 
     mta_system.save_snapshot()

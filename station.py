@@ -366,22 +366,37 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
+
+
+
         if paradigm in ['l','lit','literal']:
+
+            print self.conf_schedule
+
+
+
+            #hacky due to non condensed histograms
+
             for dt in rrule(DAILY, dtstart=a, until=b):
                 day = self.days[dt.weekday()]
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
 
-                        ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
-                        c = float(self.conf_schedule[day][hour][minute].seconds)+ref
 
-                        #here the timestamp needs to be compared to a timestamp c value or viceversa
+                        print "%s %s %s" % (day, hour, minute)
 
-                        delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
-                        
-                        print '%s:%s - %s' % (hour, minute, delay_vec)
+                        if self.conf_schedule[day][hour][minute]:
 
-                        self._delay_schedule[dt.weekday()][h][m] = np.histogram(np.asarray(delay_vec).astype(float), nbins)[0]
+                            ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
+                            c = float(self.conf_schedule[day][hour][minute].seconds)+ref
+
+                            #here the timestamp needs to be compared to a timestamp c value or viceversa
+
+                            delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
+                            
+                            print '%s:%s - %s' % (hour, minute, delay_vec)
+
+                            self._delay_schedule[dt.weekday()][h][m] = np.histogram(np.asarray(delay_vec).astype(float), nbins)[0]
 
 
             self.delays_computed = 1
@@ -390,49 +405,63 @@ class MTAStation(Station):
             print "delay paradigm not recognized."
 
 
-    def compute_delay_state_diagrams(self, paradigm):
+    def compute_delay_state_diagram(self, paradigm, startdate, enddate, nbins, aggregate_wkdays=False):
         '''This function computes the delay state diagrams based on the delay 
            histograms'''
 
 
-        literal = []
-        for p in self.parent_stations:
-            literal.append(p._delay_nbins)
-
         self.delay_states = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict()))))
 
+
+        #hacky due to non condensed histograms
+        s = startdate.split('-')
+        startyr = int(s[0])
+        startmo = int(s[1])
+        startday = int(s[2])
+
+        e = enddate.split('-')
+        endyr = int(e[0])
+        endmo = int(e[1])
+        endday = int(e[2])
+
+        a = date(startyr, startmo, startday)
+        b = date(endyr, endmo, endday)
+
         if paradigm in ['l','lit','literal']:
-            for d, day in enumerate(self.days):
+            for dt in rrule(DAILY, dtstart=a, until=b):
+                d = dt.weekday()
+                day = self.days[d]
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
+                        if self.conf_schedule[day][hour][minute]:
 
-                        ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
-                        c = float(self.conf_schedule[day][hour][minute].seconds)+ref
-                        
-                        delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
+                            ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
+                            c = float(self.conf_schedule[day][hour][minute].seconds)+ref
+                            
+                            delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
 
-                        self_state_vector = np.digitize(delay_vec, self._delay_schedule[d][h][m])
+                            self_state_vector = np.digitize(delay_vec, self._delay_schedule[d][h][m])
 
-                        parent_delays = []
-                        for p in self.parent_stations:
+                            parent_delays = []
+                            for p in self.parent_stations:
 
-                            p_delay_vec = [v-c if v-c>0 else 0 for v in p.historical_schedule[day][hour][minute]]
+                                p_delay_vec = [v-c if v-c>0 else 0 for v in p.historical_schedule[day][hour][minute]]
 
-                            comparative_delays.append(np.digitize(p_delay_vec, p._delay_schedule[d][h][m]))
+                                comparative_delays.append(np.digitize(p_delay_vec, p._delay_schedule[d][h][m]))
 
-                        #collect concurrent states into a single vector
-                        temp_delay_states = defaultdict(list)
-                        for e, element in enumerate(self_state_vector):
-                            self_state = element
-                            parent_states = []
+                            #collect concurrent states into a single vector
+                            temp_delay_states = defaultdict(list)
+                            for e, element in enumerate(self_state_vector):
+                                self_state = element
+                                parent_states = []
 
-                            for d, delay in enumerate(parent_delays):
-                                parent_states.append(delay[e])
+                                for y, delay in enumerate(parent_delays):
+                                    parent_states.append(delay[e])
 
-                            temp_delay_states[tuple(parent_states)].append(self_state)
-                        
-                        for k, v in temp_delay_states.iteritems():
-                            self.delay_states[day][hour][minute][k] = np.histogram(v, bins=self._delay_nbins, range=(0,self._delay_nbins))
+                                temp_delay_states[tuple(parent_states)].append(self_state)
+                            
+                            for k, v in temp_delay_states.iteritems():
+                                self.delay_states[day][hour][minute][k] = np.histogram(v, bins=self._delay_nbins, range=(0,self._delay_nbins))
 
 
 
