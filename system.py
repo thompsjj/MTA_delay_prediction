@@ -159,23 +159,33 @@ class MTASystem(System):
 
         for stid, station in mta_system.station.iteritems():
              outputdict["Vdata"][stid] = {}
-             outputdict["Vdata"]["numoutcomes"] = self.num_delay_histo_bins
-             outputdict["Vdata"]["vals"] = [hex(x) for x in xrange(0,self.num_delay_histo_bins)]
-             outputdict["Vdata"]["parents"] = self.parent_stations
-             outputdict["Vdata"]["children"] = self.child_stations
+             outputdict["Vdata"][stid]["numoutcomes"] = self.num_delay_histo_bins
+             outputdict["Vdata"][stid]["vals"] = [x for x in xrange(0,self.num_delay_histo_bins)]
+             outputdict["Vdata"][stid]["parents"] = self.parent_stations
+             outputdict["Vdata"][stid]["children"] = self.child_stations
 
              ########## BUILD CPROB HERE #################
 
+             outputdict["Vdata"][stid]["cprob"] = {}
+             for d, day in enumerate(station.days):
+                for h, hour in enumerate(station.hours):
+                    for m, minute in enumerate(station.sample_points):
+                        for k, v in self.delay_states[day][hour][minute].iteritems():
+                            index = "['%s']['%s']['%s']" % (day, hour, minute)
+                            for i, e in enumerate(k):
+                                index += "['%s']" % e
 
+
+                            outputdict["Vdata"][stid]["cprob"][index] = delay_states[day][hour][minute][k]
+
+
+
+        print outputdict
 
 
     def discrete_bayesian(self):
 
-
-
-
-
-
+        #
 
         pass
 

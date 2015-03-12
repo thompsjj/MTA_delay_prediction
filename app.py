@@ -75,9 +75,12 @@ def main(argv):
 
 
     #map arrivals times to stations
-    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-30','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
+    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-15','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
-    mta_system.compute_delay_histograms('2014-10-15', '2014-10-30',10)
+    mta_system.compute_delay_histograms('2014-10-15', '2014-10-15',10)
+
+    mta_system.compute_delay_state_diagrams('l')
+
 
     mta_system.save_snapshot()
 

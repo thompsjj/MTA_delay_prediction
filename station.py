@@ -70,12 +70,14 @@ class MTAStation(Station):
         self.in_collection = False
         self.schedule = defaultdict(list)
         self.schedule_set = False
+        self.delays_computed = 0
         self.conf_schedule = defaultdict(lambda : defaultdict(lambda : defaultdict()))
         self.historical_schedule = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))      
+        self.historical_index = defaultdict(lambda : defaultdict(lambda : defaultdict(int))) 
 
         self.days = ['MON','TUE','WED', 'THU', 'FRI', 'SAT','SUN']
 
-        self.hourtypes = ['00','01','02','03','04','05','06','07','08',\
+        self.hours = ['00','01','02','03','04','05','06','07','08',\
         '09','10','11','12','13','14','15','16','17','18','19','20',\
         '21','22','23']
 
@@ -115,7 +117,7 @@ class MTAStation(Station):
 
         for day in self.days:
             schedule_today = self.schedule[day]
-            for hour in self.hourtypes:
+            for hour in self.hours:
                 for minute in self.sample_points:
 
                     # take a zip between actual time and difference between
@@ -131,7 +133,7 @@ class MTAStation(Station):
                     if len(check_pt) > 0:
                         closest_train = min(check_pt, key=lambda x: x[0])[0]
                     
-                    elif (hour == self.hourtypes[-1]):
+                    elif (hour == self.hours[-1]):
                         closest_train = 'next'
                     else:
                         print '_calculate_conformal_schedule \n: \
@@ -145,12 +147,12 @@ class MTAStation(Station):
 
         # we resolve the 'next' flags here.
         for d, day in enumerate(self.days):
-              for h, hour in enumerate(self.hourtypes):
+              for h, hour in enumerate(self.hours):
                 for m, minute in enumerate(self.sample_points):
                         if self.conf_schedule[day][hour][minute] == 'next':
                             self.conf_schedule[day][hour][minute] = \
                             self.conf_schedule[next_day(day, self.days)]\
-                            [self.hourtypes[0]][self.sample_points[0]]\
+                            [self.hours[0]][self.sample_points[0]]\
                             +timedelta_from_timestring('00:05:00')
 
 
@@ -182,11 +184,11 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
-        max_tstamp = timestamp_from_refdt(self.hourtypes[-1],self.sample_points[-1],b,'US/Eastern')+3600
+        max_tstamp = timestamp_from_refdt(self.hours[-1],self.sample_points[-1],b,'US/Eastern')+3600
 
         interval = []
         #unroll inner loop
-        for hour in self.hourtypes:
+        for hour in self.hours:
             for minute in self.sample_points:
                 interval.append((hour, minute))
 
@@ -224,13 +226,13 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
-        max_tstamp = timestamp_from_refdt(self.hourtypes[-1],self.sample_points[-1],b,'US/Eastern')+3600
+        max_tstamp = timestamp_from_refdt(self.hours[-1],self.sample_points[-1],b,'US/Eastern')+3600
 
         sample_tstamp = []
         THREAD_NAMES = []
         sample_names = []
         for dt in rrule(DAILY, dtstart=a, until=b):
-            for hour in self.hourtypes:
+            for hour in self.hours:
                 for minute in self.sample_points:
                     sample_tstamp.append(timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600)
                     THREAD_NAMES.append("Thread: %s :: %s :%s:%s" % (self.station_id, dt.strftime("%Y-%m-%d"), hour, minute))
@@ -325,10 +327,13 @@ class MTAStation(Station):
             conn_select.closeall()
 
         for i, result in enumerate(results):
+
+            #timestamp_from_refdt(self.hours[-1],self.sample_points[-1],b,'US/Eastern')+3600
             day = self.days[result[0][0].weekday()]
             hour = result[0][1]
             minute = result[0][2]
             self.historical_schedule[day][hour][minute].append(result[1])
+            self.historical_index[day][hour][minute] += 1
 
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
         print self.historical_schedule['WED']
@@ -343,7 +348,8 @@ class MTAStation(Station):
 
 
 
-        self._delay_schedule = np.zeros((len(self.days), len(self.hourtypes), len(self.sample_points), nbins))
+        self._delay_schedule = np.zeros((len(self.days), len(self.hours), len(self.sample_points), nbins))
+        self._delay_nbins = nbins
 
         print self.station_id
 
@@ -363,8 +369,9 @@ class MTAStation(Station):
         if paradigm in ['l','lit','literal']:
             for dt in rrule(DAILY, dtstart=a, until=b):
                 day = self.days[dt.weekday()]
-                for h, hour in enumerate(self.hourtypes):
+                for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
+
                         ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
                         c = float(self.conf_schedule[day][hour][minute].seconds)+ref
 
@@ -375,8 +382,60 @@ class MTAStation(Station):
                         print '%s:%s - %s' % (hour, minute, delay_vec)
 
                         self._delay_schedule[dt.weekday()][h][m] = np.histogram(np.asarray(delay_vec).astype(float), nbins)[0]
+
+
+            self.delays_computed = 1
+
         else:
             print "delay paradigm not recognized."
+
+
+    def compute_delay_state_diagrams(self, paradigm):
+        '''This function computes the delay state diagrams based on the delay 
+           histograms'''
+
+
+        literal = []
+        for p in self.parent_stations:
+            literal.append(p._delay_nbins)
+
+        self.delay_states = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict()))))
+
+        if paradigm in ['l','lit','literal']:
+            for d, day in enumerate(self.days):
+                for h, hour in enumerate(self.hours):
+                    for m, minute in enumerate(self.sample_points):
+
+                        ref= timestamp_from_refdt(hour, minute, dt,'US/Eastern')+3600
+                        c = float(self.conf_schedule[day][hour][minute].seconds)+ref
+                        
+                        delay_vec = [v-c if v-c>0 else 0 for v in self.historical_schedule[day][hour][minute]]
+
+                        self_state_vector = np.digitize(delay_vec, self._delay_schedule[d][h][m])
+
+                        parent_delays = []
+                        for p in self.parent_stations:
+
+                            p_delay_vec = [v-c if v-c>0 else 0 for v in p.historical_schedule[day][hour][minute]]
+
+                            comparative_delays.append(np.digitize(p_delay_vec, p._delay_schedule[d][h][m]))
+
+                        #collect concurrent states into a single vector
+                        temp_delay_states = defaultdict(list)
+                        for e, element in enumerate(self_state_vector):
+                            self_state = element
+                            parent_states = []
+
+                            for d, delay in enumerate(parent_delays):
+                                parent_states.append(delay[e])
+
+                            temp_delay_states[tuple(parent_states)].append(self_state)
+                        
+                        for k, v in temp_delay_states.iteritems():
+                            self.delay_states[day][hour][minute][k] = np.histogram(v, bins=self._delay_nbins, range=(0,self._delay_nbins))
+
+
+
 
 
     def save_delay_histos(self, timestamp):
@@ -389,7 +448,7 @@ class MTAStation(Station):
                 pickle.dump(self.days,outfile)
 
             with open('%s_%s_MTA_hour_points.pkl' %(timestamp, self.station_id),'wb') as outfile:
-                pickle.dump(self.hourtypes,outfile)
+                pickle.dump(self.hours,outfile)
 
             with open('%s_%s_MTA_minute_sample_points.pkl' %(timestamp, self.station_id),'wb') as outfile:
                 pickle.dump(self.sample_points,outfile)
