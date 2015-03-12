@@ -108,7 +108,7 @@ class MTASystem(System):
 
             #stn.sample_history_from_db(cursor, start_date, end_date)
             #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-                stn.compute_delay_histograms(nbins,paradigm,start_date, end_date)
+                stn.compute_delay_histogram(nbins,paradigm,start_date, end_date)
 
                 print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
 
@@ -135,11 +135,13 @@ class MTASystem(System):
                 self.station[v] = MTAStation(v)
 
             for e in topology.edges:
-                self.station[e[0]].neighbor_stations.append(e[1])
-                self.station[e[0]].child_stations.append(e[1])
+                self.station[e[0]].neighbor_stations_names.append(e[1])
+                self.station[e[0]].child_stations_names.append(e[1])
+                self.station[e[0]].child_stations_names.append(self.station[e[1]])
 
             for e in topology.edges:
-                self.station[e[1]].parent_stations.append(e[0])
+                self.station[e[1]].child_stations_names.append(e[0])       
+                self.station[e[1]].parent_stations_names.append(self.station[e[0]])
 
 
 
@@ -162,40 +164,47 @@ class MTASystem(System):
         outputdict["V"] = []
         outputdict["E"] = []
 
-        for stid, station in mta_system.station.iteritems():
-            outputdict["V"].append(stid)
-            edge_set = []
-            for stid_e in station.neighbor_stations:
-                edge_set.append([stid,stid_e])
-            outputdict["E"].append(edge_set)
+        for stid, station in self.station.iteritems():
+            if stid in ['126N','127N','128N']:
+                outputdict["V"].append(stid)
+                edge_set = []
+                for stid_e in enumerate(station.neighbor_stations_names):
+                    edge_set.append([stid, stid_e])
+                outputdict["E"].append(edge_set)
 
 
         outputdict["Vdata"] = {}
 
-        for stid, station in mta_system.station.iteritems():
-             outputdict["Vdata"][stid] = {}
-             outputdict["Vdata"][stid]["numoutcomes"] = self.num_delay_histo_bins
-             outputdict["Vdata"][stid]["vals"] = [x for x in xrange(0,self.num_delay_histo_bins)]
-             outputdict["Vdata"][stid]["parents"] = self.parent_stations
-             outputdict["Vdata"][stid]["children"] = self.child_stations
+        for stid, station in self.station.iteritems():
+            if stid in ['126N','127N','128N']:
+                outputdict["Vdata"][stid] = {}
+                outputdict["Vdata"][stid]["numoutcomes"] = station._delay_nbins
+                outputdict["Vdata"][stid]["vals"] = [x for x in xrange(0,station._delay_nbins)]
+                outputdict["Vdata"][stid]["parents"] = station.parent_stations_names
+                outputdict["Vdata"][stid]["children"] = station.child_stations_names
 
              ########## BUILD CPROB HERE #################
 
-             outputdict["Vdata"][stid]["cprob"] = {}
-             for d, day in enumerate(station.days):
-                for h, hour in enumerate(station.hours):
-                    for m, minute in enumerate(station.sample_points):
-                        for k, v in self.delay_states[day][hour][minute].iteritems():
-                            index = "['%s']['%s']['%s']" % (day, hour, minute)
-                            for i, e in enumerate(k):
-                                index += "['%s']" % e
+                outputdict["Vdata"][stid]["cprob"] = {}
+                for d, day in enumerate(station.days):
+                    for h, hour in enumerate(station.hours):
+                        for m, minute in enumerate(station.sample_points):
+                            for k, v in station.delay_states[day][hour][minute].iteritems():
+                                index = "['%s']['%s']['%s']" % (day, hour, minute)
+                                for i, e in enumerate(k):
+                                    index += "['%s']" % e
+
+                                #print 'iterating'
+                               # print k
+                                #print index
+                                #print station.delay_states[day][hour][minute][k]
+                                outputdict["Vdata"][stid]["cprob"][index] = station.delay_states[day][hour][minute][k]
 
 
-                            outputdict["Vdata"][stid]["cprob"][index] = delay_states[day][hour][minute][k]
 
-
-
-        print outputdict
+      # for k, v in outputdict["Vdata"]['127N']["cprob"].iteritems():
+        #    print k
+         #   print v'''
 
 
     def discrete_bayesian(self):

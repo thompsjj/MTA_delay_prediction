@@ -73,10 +73,16 @@ def main(argv):
 
     mta_system.compute_delay_histograms('l','2014-10-15', '2014-10-15',10)
 
+
+    mta_system.save_snapshot()
+
+
     mta_system.compute_delay_state_diagrams('l','2014-10-15', '2014-10-15',10)
 
 
-    mta_system.save_snapshot()
+
+
+    mta_system.save_delay_state_file()
 
 
     ##### LOAD FROM PICKLED SCHEDULES #####
