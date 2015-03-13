@@ -403,11 +403,13 @@ class MTAStation(Station):
             # THIS IS BROKEN> NOT CHANGING
             print k
             print v
-            time.sleep(1)
-            self.delay_states[day][hour][minute][k] = \
+            time.sleep(1) 
+            self.delay_state[day][hour][minute][k] = \
                 np.histogram(v, bins=self._delay_nbins, range=(0, self._delay_nbins))[0]
 
-
+    def store_delay_state_for_root_node(self, day, hour, minute, temp_delay_states):
+        self.delay_state[day][hour][minute][0] = \
+                np.histogram(temp_delay_states[0], bins=self._delay_nbins, range=(0, self._delay_nbins))[0]
 
     def find_timestamp(self, day, dt, hour, minute):
         ref = timestamp_from_refdt(hour, minute, dt, 'US/Eastern') + 3600
@@ -423,11 +425,19 @@ class MTAStation(Station):
 
             num_parent_states = 0
             for i, st in enumerate(self.parent_states):
-                self.delay_states[day][hour][minute][st] = [0 for x in xrange(self._delay_nbins)]
+                self.delay_state[day][hour][minute][st] = [0 for x in xrange(self._delay_nbins)]
         else:
             # in the case that this is a source node, there is only one parent state.
 
-            self.delay_states[day][hour][minute][0] = [0 for x in xrange(self._delay_nbins)]
+            self.delay_state[day][hour][minute][0] = [0 for x in xrange(self._delay_nbins)]
+
+
+    def sample_point_occupied(self, day, hour, minute):
+        if np.any(self.historical_schedule[day][hour[minute]]):
+            return True
+        else:
+            return False
+
 
 
 
@@ -439,7 +449,7 @@ class MTAStation(Station):
         """This function computes the delay state diagrams based on the delay
            histograms"""
 
-        self.delay_states = defaultdict(
+        self.delay_state = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict()))))
 
         # hacky due to non condensed histograms
@@ -486,7 +496,8 @@ class MTAStation(Station):
                             self.store_delay_states(day, hour, minute, temp_delay_states)
 
                         elif occupied:
-                            # if the station is a source node
+                            temp_delay_states = defaultdict(list)
+                            self.store_delay_state_for_root_node(day,hour,minute,temp_delay_states)
                         else:
                             print 'time point %s %s %s ignored for station %s' % (day,hour, minute, self.station_id)
 
