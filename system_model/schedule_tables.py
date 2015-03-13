@@ -25,7 +25,7 @@ class schedule_table(object):
 
         # Create stops
         self.stops = defaultdict()
-        #self.routes = defaultdict(list)
+
         for line in stop_info:
             #print line
             l = line.split(",")
@@ -36,8 +36,8 @@ class schedule_table(object):
             route = stop_id[0]
             entry = {'id':stop_id, 'name' : name, 'lat': lat, 'lon': lon}
             self.stops[stop_id] = entry
-            #self.routes[route].append(entry)
-            #print self.stops[stop_id]
+            # self.routes[route].append(entry)
+            # print self.stops[stop_id]
 
         # Create arrivals
         self.ids = []

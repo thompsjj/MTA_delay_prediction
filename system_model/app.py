@@ -5,8 +5,8 @@ from topology import Topology
 from system import System, MTASystem
 import psycopg2
 from psycopg2.extras import DictCursor
-from sql_interface import connect_to_local_db, sample_local_db_dict_cursor
-import dill as pickle
+from sql_interface import connect_to_local_db, \
+    connect_to_db, sample_local_db_dict_cursor
 
 import json
 
@@ -29,8 +29,8 @@ def main(argv):
         #print overall_schedule.get_route('J')
 
     mta_routes = mta_route_schedule()
-    mta_routes.build('./google_transit/corrected_stop_times.txt', \
-        './google_transit/stops.txt')
+    mta_routes.build('../google_transit/corrected_stop_times.txt', \
+        '../google_transit/stops.txt')
     # construct topofile using schedule and line tables
 
     route_topology = Topology()
@@ -49,8 +49,11 @@ def main(argv):
 
     #mta_system.build(route_topology, None, reference_date)
 
-    cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
+    #for local applications only
+    '''cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')'''
 
+    # to connect to a remote db
+    cursor, conn = connect_to_db('mta_historical','postgres','ec2-54-67-95-112.us-west-1.compute.amazonaws.com','user')
 
     try:
         cursor.execute("CREATE INDEX stid ON mta_historical_small USING gin (to_tsvector('english',stop_id));")
@@ -65,32 +68,22 @@ def main(argv):
     cursor.close()
     conn.close()
 
-    #cursor, conn = sample_local_db_dict_cursor('mta_historical','postgres')
+    # map arrivals times to stations
+    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-30','mta_historical','mta_historical_small', 'postgres', 'ec2-54-67-95-112.us-west-1.compute.amazonaws.com', 'user')
 
 
-    #map arrivals times to stations
-    mta_system.sample_arrival_times_from_db('2014-10-15', '2014-10-15','mta_historical','mta_historical_small', 'postgres', 'localhost', 'postgres')
 
-    mta_system.compute_delay_histograms('l','2014-10-15', '2014-10-15',10)
+    sys.exit(0)
 
 
-    mta_system.save_snapshot()
+#    mta_system.compute_delay_histograms('l','2014-10-15', '2014-10-17',10)
 
+#    mta_system.compute_delay_state_diagrams('l','2014-10-15', '2014-10-17',10)
 
-    mta_system.compute_delay_state_diagrams('l','2014-10-15', '2014-10-15',10)
-
-
+ #   mta_system.save_snapshot()
 
 
     mta_system.save_delay_state_file()
-
-
-    ##### LOAD FROM PICKLED SCHEDULES #####
-
-
-    #######################################
-
-
 
 
    # mta_system.discrete_bayesian(target_file)

@@ -94,8 +94,8 @@ class MTASystem(System):
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
 
-                #stn.sample_history_from_db(cursor, start_date, end_date)
-                #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+                # stn.sample_history_from_db(cursor, start_date, end_date)
+                # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
                 stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
 
 
@@ -106,8 +106,8 @@ class MTASystem(System):
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
 
-            #stn.sample_history_from_db(cursor, start_date, end_date)
-            #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+            # stn.sample_history_from_db(cursor, start_date, end_date)
+            # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
                 stn.compute_delay_histogram(nbins,paradigm,start_date, end_date)
 
                 print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
@@ -119,8 +119,7 @@ class MTASystem(System):
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
 
-            #stn.sample_history_from_db(cursor, start_date, end_date)
-            #stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
+                stn.compute_parent_states()
                 stn.compute_delay_state_diagram(paradigm, start_date, end_date,nbins)
 
 
@@ -142,7 +141,7 @@ class MTASystem(System):
             for e in topology.edges:
                 self.station[e[1]].child_stations_names.append(e[0])       
                 self.station[e[1]].parent_stations_names.append(self.station[e[0]])
-
+                self.station[e[1]].has_parents = True
 
 
     def save_snapshot(self):
@@ -189,7 +188,7 @@ class MTASystem(System):
                 for d, day in enumerate(station.days):
                     for h, hour in enumerate(station.hours):
                         for m, minute in enumerate(station.sample_points):
-                            for k, v in station.delay_states[day][hour][minute].iteritems():
+                            for k, v in station.delay_state[day][hour][minute].iteritems():
                                 index = "['%s']['%s']['%s']" % (day, hour, minute)
                                 for i, e in enumerate(k):
                                     index += "['%s']" % e
@@ -198,7 +197,7 @@ class MTASystem(System):
                                # print k
                                 #print index
                                 #print station.delay_states[day][hour][minute][k]
-                                outputdict["Vdata"][stid]["cprob"][index] = station.delay_states[day][hour][minute][k]
+                                outputdict["Vdata"][stid]["cprob"][index] = station.delay_state[day][hour][minute][k]
 
 
 
