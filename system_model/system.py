@@ -38,13 +38,14 @@ class System(object):
         self.isBuilt = False
         self.station = defaultdict()
 
-    def build(self, topology, schedule, reference_date):
+    def build(self, topology, schedule, reference_date, nbins):
 
         try:
             self._read_topology(topology)
 
             if schedule:
-                self._populate_stations(schedule, reference_date)
+                # the n bins array can be adjusted later for variable bins
+                self._populate_stations(schedule, reference_date, nbins)
                 self.isBuilt = True
         except StandardError, e:
             print e
@@ -60,17 +61,17 @@ class System(object):
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations.append(e[1])
 
-    def _populate_stations(self, schedule, reference_date):
+    def _populate_stations(self, schedule, reference_date, nbins):
 
         '''This function takes a station id and sets its schedule for all
         trains and trips for every day that belong to this station'''
-
 
         for stid, stn in self.station.iteritems():
 
             if stid in ['126N','127N','128N']: #remove after scale up
 
                 stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
+                stn.delay_nbins = nbins
 
     def __repr__(self):
         print self.isBuilt
@@ -108,7 +109,7 @@ class MTASystem(System):
 
             # stn.sample_history_from_db(cursor, start_date, end_date)
             # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-                stn.compute_delay_histogram(nbins,paradigm,start_date, end_date)
+                stn.compute_delay_histogram(paradigm,start_date, end_date)
 
                 print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
 
@@ -118,12 +119,15 @@ class MTASystem(System):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
-
                 stn.compute_parent_states()
+
                 stn.compute_delay_state_diagram(paradigm, start_date, end_date, nbins)
 
 
     def _read_topology(self, topology):
+
+        print 'reading topology'
+
 
         if isinstance(topology, Topology):
 
@@ -133,12 +137,18 @@ class MTASystem(System):
             for e in topology.edges:
                 self.station[e[0]].neighbor_stations_names.append(e[1])
                 self.station[e[0]].child_stations_names.append(e[1])
-                self.station[e[0]].child_stations_names.append(self.station[e[1]])
+                self.station[e[0]].child_stations.append(self.station[e[1]])
 
             for e in topology.edges:
-                self.station[e[1]].child_stations_names.append(e[0])       
-                self.station[e[1]].parent_stations_names.append(self.station[e[0]])
+                self.station[e[1]].parent_stations_names.append(e[0])
+                self.station[e[1]].parent_stations.append(self.station[e[0]])
                 self.station[e[1]].has_parents = True
+
+            """for stid, station in self.station.iteritems():
+                print "my id: %s" % (stid)
+                if station.has_parents:
+                    print "my parents: %s" % station.parent_stations_names
+            sys.exit(0)"""
 
 
     def save_snapshot(self):
@@ -218,13 +228,6 @@ class MTASystem(System):
       # for k, v in outputdict["Vdata"]['127N']["cprob"].iteritems():
         #    print k
          #   print v'''
-
-
-    def discrete_bayesian(self):
-
-        #
-
-        pass
 
 
 

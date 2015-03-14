@@ -45,7 +45,7 @@ def main(argv):
     reference_date = '2013-12-15-6-349-0-0-0'
 
     mta_system = MTASystem()
-    mta_system.build(route_topology, mta_routes, reference_date)
+    mta_system.build(route_topology, mta_routes, reference_date, 10)
 
     #mta_system.build(route_topology, None, reference_date)
 
@@ -79,9 +79,9 @@ def main(argv):
 
     mta_system.load_history('./history')
 
-#    mta_system.compute_delay_histograms('l','2014-10-15', '2014-10-17',10)
+    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-01',10)
 
-#    mta_system.compute_delay_state_diagrams('l','2014-10-15', '2014-10-17',10)
+    mta_system.compute_delay_state_diagrams('l','2014-10-30', '2014-11-01',10)
 
  #   mta_system.save_snapshot()
 
