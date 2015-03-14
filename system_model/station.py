@@ -17,12 +17,11 @@ import threading
 import time
 import itertools
 import numpy as np
-import sys, os
+import sys, os, glob, errno
 from uniquelist import uniquelist
 from datetime_handlers import timedelta_from_timestring, \
     timestamp_from_refdt
-import pickle as pickle
-
+import dill as pickle
 
 class Station(object):
     def __init__(self, station_id):
@@ -237,6 +236,8 @@ class MTAStation(Station):
             name = threading.currentThread().getName()
 
             try:
+
+
                 conn = conn_or_pool.getconn()
                 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
                 c = conn.cursor(cursor_factory=DictCursor)
@@ -252,11 +253,12 @@ class MTAStation(Station):
                 conn.commit()
                 conn_or_pool.putconn(conn, close=True)
 
-                #s = name + ": number of rows fetched: " + str(len(l))
-                #print name
-                #print s
+                """print 'select_func: %s %s' % (start_tstamp, stop_tstamp)
+                print '%s' % (query)
+                print 'response: %s' % l"""
 
                 if not l:
+                    print 'no historical schedule time was found'
                     return 0
                 else:
                     return l[0]['eta_sample']
@@ -300,7 +302,7 @@ class MTAStation(Station):
             ## JOIN THREADS ##
 
             for i, name in enumerate(chunk):
-                t = threading.Thread(target=wrapper, name='Thread-' + name, \
+                t = threading.Thread(target=wrapper, name=name, \
                                      args=( select_func, (conn_select, table_name, \
                                                           self.station_id, sample_tstamp[i + c * CHUNK_SIZE],
                                                           max_tstamp), \
@@ -332,7 +334,7 @@ class MTAStation(Station):
 
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
         print self.historical_schedule
-        sys.exit(0)
+
 
     def compute_delay_histogram(self, nbins, paradigm, startdate, enddate, aggregate_wkdays=False):
 
@@ -386,9 +388,9 @@ class MTAStation(Station):
                             print '%s:%s - %s' % (hour, minute, delay_vec)
 
                             self._delay_schedule[dt.weekday()][h][m] = \
-                                np.histogram(np.asarray(delay_vec).astype(float), nbins)[0]
+                                np.histogram(np.asarray(delay_vec).astype(float), nbins, normed=False)[0]
                             self.delay_bins[day][hour][minute] = \
-                                np.histogram(np.asarray(delay_vec).astype(float), nbins)[1]
+                                np.histogram(np.asarray(delay_vec).astype(float), nbins, normed=False)[1]
 
             self.delays_computed = 1
 
@@ -416,7 +418,7 @@ class MTAStation(Station):
             print v
             time.sleep(1) 
             self.delay_state[day][hour][minute][k] = \
-                np.histogram(v, bins=self._delay_nbins, range=(0, self._delay_nbins))[0]
+                np.histogram(v, bins=self._delay_nbins, range=(0, self._delay_nbins),normed=False)[0]
 
     def store_delay_state_for_root_node(self, day, hour, minute, temp_delay_states):
         self.delay_state[day][hour][minute][0] = \
@@ -533,11 +535,60 @@ class MTAStation(Station):
                         else:
                             print 'time point %s %s %s ignored for station %s' % (day,hour, minute, self.station_id)
 
+    def condense_delay_state_weekdays(self):
+        weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI']
+        for day in self.days():
+            for hour in self.hours():
+                for minute in self.minutes():
+                    for st in self.parent_states:
+                        if day in weekdays:
+                            self.delay_state['WKD'][hour][minute][st] += self.delay_state[day][hour][minute][st]
+
+
+    def save_station_history(self, timestamp):
+        print 'saving history'
+        if np.any(self.historical_schedule):
+            with open('%s_%s_MTA_historical_schedule.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self.historical_schedule, outfile)
+
+    def load_station_history(self, path):
+
+        for dir_entry in os.listdir(path):
+            dir_entry_path = os.path.join(path, dir_entry)
+            if os.path.isfile(dir_entry_path):
+                name = dir_entry_path
+
+                if (name.split('_')[1] == self.station_id) and (name.split('.')[-1] == 'pkl'):
+                    try:
+                        with open(name,'rb') as f: # No need to specify 'r': this is the default.
+                            pkl_history = pickle.load(f)
+                            if not np.any(pkl_history):
+                                print 'An empty history was loaded for station %s' % self.station_id
+
+                            self.historical_schedule = pkl_history
+                            print self.historical_schedule
+                    except IOError as exc:
+                        if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
+                            raise # Propagate other kinds of IOError.
+
+
+
+    def save_station_delay_state(self, timestamp):
+        if np.any(self.delay_state):
+            with open('%s_%s_MTA_delay_state_diagram.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self._delay_state, outfile)
+
+            with open('%s_%s_MTA_day_points.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self.days, outfile)
+
+            with open('%s_%s_MTA_hour_points.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self.hours, outfile)
+
+            with open('%s_%s_MTA_minute_sample_points.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self.sample_points, outfile)
 
     def save_delay_histos(self, timestamp):
         if np.any(self._delay_schedule):
-            with open('%s_%s_MTA_delay_state_diagram.pkl' % (timestamp, self.station_id), 'wb') as outfile:
-                pickle.dump(self._delay_schedule, outfile)
 
             with open('%s_%s_MTA_delay_histo.pkl' % (timestamp, self.station_id), 'wb') as outfile:
                 pickle.dump(self._delay_schedule, outfile)

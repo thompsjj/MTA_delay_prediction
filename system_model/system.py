@@ -120,10 +120,7 @@ class MTASystem(System):
             if stid in ['126N','127N','128N']: # remove after scale up
 
                 stn.compute_parent_states()
-                stn.compute_delay_state_diagram(paradigm, start_date, end_date,nbins)
-
-
-
+                stn.compute_delay_state_diagram(paradigm, start_date, end_date, nbins)
 
 
     def _read_topology(self, topology):
@@ -151,6 +148,23 @@ class MTASystem(System):
                 stn.save_delay_histos(tmstmp)
 
 
+    def save_history(self):
+        tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
+        for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: #remove after scale up
+                stn.save_station_history(tmstmp)
+
+
+    def condense_weekdays(self):
+        for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: #remove after scale up
+                stn.condense_weekdays()
+
+
+    def load_history(self, target_dir):
+        for stid, stn in self.station.iteritems():
+            if stid in ['126N','127N','128N']: #remove after scale up
+                stn.load_station_history(target_dir)
 
 
 
