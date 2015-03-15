@@ -14,7 +14,7 @@ import json
 
 
 def main(argv):
-    mode = 'STORE'
+    mode = 'LOAD'
     # load schedule table
 
         # load line tables

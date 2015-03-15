@@ -360,74 +360,54 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
-        if paradigm in ['l', 'lit', 'literal']:
-
-            print 'self conf. schedule:'
-            print self.conf_schedule
-
-            # Everything should be based now on the historical timestamps.
-
-
-
-
-            for d, day in enumerate(self.days):
-                for h, hour in enumerate(self.hours):
-                    for m, minute in enumerate(self.sample_points):
-                        if self.conf_schedule[day][hour][minute]:
-                            if self.historical_timestamps[day][hour][minute] \
-                                    and self.historical_schedule[day][hour][minute]:
-
-                                    self.delays_computed = 1
+        for d, day in enumerate(self.days):
+            for h, hour in enumerate(self.hours):
+                for m, minute in enumerate(self.sample_points):
+                    if self.conf_schedule[day][hour][minute]:
+                        if self.historical_timestamps[day][hour][minute] \
+                                and self.historical_schedule[day][hour][minute]:
+                            self.delays_computed = 1
 
                                     #new code here
 
                                     ### conf schedule is delta timepoint ###
 
-                                    print self.conf_schedule[day][hour][minute].seconds
+                            print self.conf_schedule[day][hour][minute].seconds
 
 
-                                    reference_timepoint = \
+                            reference_timepoint = \
                                         self.conf_schedule[day][hour][minute].seconds+\
                                         self.historical_timestamps[day][hour][minute][0]
 
-                                    print reference_timepoint
+                            print reference_timepoint
 
-                                    print 'historical schedule'
+                            print 'historical schedule'
 
-                                    print 'timestamp'
+                            print 'timestamp'
 
-                                    print self.historical_timestamps[day][hour][minute]
+                            print self.historical_timestamps[day][hour][minute]
 
-                                    print 'historical schedule'
+                            print 'historical schedule'
 
-                                    print self.historical_schedule[day][hour][minute]
+                            print self.historical_schedule[day][hour][minute]
 
-                                    print 'conf schedule'
+                            print 'conf schedule'
 
-                                    print self.conf_schedule[day][hour][minute].seconds
+                            print self.conf_schedule[day][hour][minute].seconds
 
-                                    print '%s %s %s' % (day, hour, minute)
+                            print '%s %s %s' % (day, hour, minute)
                                     # Subtract the reference point from the historical schedule to get the naive delays
 
-                                    self.delay_schedule[day][hour][minute] = \
+                            self.delay_schedule[day][hour][minute] = \
                                        np.array(self.historical_schedule[day][hour][minute])-reference_timepoint
 
 
-                                    print self.delay_schedule[day][hour][minute]
+                            print self.delay_schedule[day][hour][minute]
 
+                            sys.exit(1)
 
-
-                                    sys.exit(1)
-
-                                    # Bin the naive delays. First you must compute a blind histogram.
-
-                                    #
-
-
-
-        else:
-            print "delay paradigm not recognized."
-
+                                    # Bin the naive delays. First you must compute a blind histogram. Then digitize is
+                                    # used to obtain the bins.
 
 
 
