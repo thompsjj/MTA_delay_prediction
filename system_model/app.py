@@ -14,7 +14,7 @@ import json
 
 
 def main(argv):
-
+    mode = 'STORE'
     # load schedule table
 
         # load line tables
@@ -70,16 +70,21 @@ def main(argv):
 
     # map arrivals times to stations
 
-    """mta_system.sample_arrival_times_from_db('2014-10-30', '2014-11-30','mta_historical','mta_historical_small', 'postgres', 'ec2-54-67-95-112.us-west-1.compute.amazonaws.com', 'user')
+    if mode=='STORE':
+        mta_system.sample_arrival_times_from_db('2014-10-30', '2014-11-15','mta_historical','mta_historical_small', 'postgres', 'ec2-54-67-95-112.us-west-1.compute.amazonaws.com', 'user')
+        mta_system.save_history()
+        sys.exit(1)
+    else:
+        print 'attempting to load history'
+        mta_system.load_history('./history2')
 
 
-    mta_system.save_history()"""
-
-    print 'attempting to load history'
-
-    mta_system.load_history('./history')
+# Delay histograms need to be calculated first
 
     mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-01',10)
+
+    sys.exit(0)
+    print 'computing state diagrams'
 
     mta_system.compute_delay_state_diagrams('l','2014-10-30', '2014-11-01',10)
 

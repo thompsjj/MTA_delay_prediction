@@ -45,6 +45,8 @@ class Station(object):
 class MTAStation(Station):
     def __init__(self, station_id):
         super(MTAStation, self).__init__(station_id)
+        self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
+        self.delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self.parent_states = [0]
         self.station_id = station_id
         self.neighbor_stations = uniquelist()
@@ -61,6 +63,7 @@ class MTAStation(Station):
         self.has_parents = 0
         self.conf_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict()))
         self.historical_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self.historical_timestamps = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         self.historical_index = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
         self.days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
@@ -187,7 +190,7 @@ class MTAStation(Station):
                 response = query_mta_historical_closest_train_between(cursor, 'mta_historical_small', self.station_id,
                                                                       current_tstamp, max_tstamp)
                 self.historical_schedule[day][hour][minute].append(response)
-
+                self.historical_timestamps[day][hour][minute].append(current_tstamp)
 
         for day in self.days:
             for hour in self.hours:
@@ -270,7 +273,7 @@ class MTAStation(Station):
         ## WRAPPER ##
 
         def wrapper(func, args, name, result):
-            result.append((name, func(*args)))
+            result.append((args[3], name, func(*args)))
 
         ## GROUPER ##
 
@@ -323,13 +326,12 @@ class MTAStation(Station):
 
         for i, result in enumerate(results):
             #timestamp_from_refdt(self.hours[-1],self.sample_points[-1],b,'US/Eastern')+3600
-            day = self.days[result[0][0].weekday()]
-            hour = result[0][1]
-            minute = result[0][2]
+            day = self.days[result[1][0].weekday()]
+            hour = result[1][1]
+            minute = result[1][2]
 
-            print result
-
-            self.historical_schedule[day][hour][minute].append(result[1])
+            self.historical_timestamps[day][hour][minute].append(result[0])
+            self.historical_schedule[day][hour][minute].append(result[2])
             self.historical_index[day][hour][minute] += 1
 
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
@@ -343,10 +345,7 @@ class MTAStation(Station):
         INPUT: self, int (number of bins)  (schedules as stored in object)
         OUTPUT: bool (success) (delay histos are stored back to object)"""
 
-        self._delay_schedule = np.zeros((len(self.days), len(self.hours), len(self.sample_points), self.delay_nbins))
-        self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
-
-        print self.station_id
+        #print self.station_id
 
         s = startdate.split('-')
         startyr = int(s[0])
@@ -363,42 +362,74 @@ class MTAStation(Station):
 
         if paradigm in ['l', 'lit', 'literal']:
 
-
             print 'self conf. schedule:'
             print self.conf_schedule
 
+            # Everything should be based now on the historical timestamps.
 
 
-            #hacky due to non condensed histograms
 
-            for dt in rrule(DAILY, dtstart=a, until=b):
-                day = self.days[dt.weekday()]
+
+            for d, day in enumerate(self.days):
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
-
-
-                        print "%s %s %s" % (day, hour, minute)
-
                         if self.conf_schedule[day][hour][minute]:
-                            c = self.find_timestamp(day, dt, hour, minute)
+                            if self.historical_timestamps[day][hour][minute] \
+                                    and self.historical_schedule[day][hour][minute]:
 
-                            #here the timestamp needs to be compared to a timestamp c value or viceversa
+                                    self.delays_computed = 1
 
-                            delay_vec = self.calculate_delay_vector(c, day, hour, minute)
+                                    #new code here
 
-                            print '%s:%s - %s' % (hour, minute, delay_vec)
-                            print self.delay_nbins
+                                    ### conf schedule is delta timepoint ###
+
+                                    print self.conf_schedule[day][hour][minute].seconds
 
 
-                            self._delay_schedule[dt.weekday()][h][m] = \
-                                np.histogram(np.asarray(delay_vec).astype(float), self.delay_nbins, normed=False)[0]
-                            self.delay_bins[day][hour][minute] = \
-                                np.histogram(np.asarray(delay_vec).astype(float), self.delay_nbins, normed=False)[1]
+                                    reference_timepoint = \
+                                        self.conf_schedule[day][hour][minute].seconds+\
+                                        self.historical_timestamps[day][hour][minute][0]
 
-            self.delays_computed = 1
+                                    print reference_timepoint
+
+                                    print 'historical schedule'
+
+                                    print 'timestamp'
+
+                                    print self.historical_timestamps[day][hour][minute]
+
+                                    print 'historical schedule'
+
+                                    print self.historical_schedule[day][hour][minute]
+
+                                    print 'conf schedule'
+
+                                    print self.conf_schedule[day][hour][minute].seconds
+
+                                    print '%s %s %s' % (day, hour, minute)
+                                    # Subtract the reference point from the historical schedule to get the naive delays
+
+                                    self.delay_schedule[day][hour][minute] = \
+                                       np.array(self.historical_schedule[day][hour][minute])-reference_timepoint
+
+
+                                    print self.delay_schedule[day][hour][minute]
+
+
+
+                                    sys.exit(1)
+
+                                    # Bin the naive delays. First you must compute a blind histogram.
+
+                                    #
+
+
 
         else:
             print "delay paradigm not recognized."
+
+
+
 
 
     def collect_concurrent_states(self, parent_state_vector, self_state_vector, temp_state_vector):
@@ -515,6 +546,7 @@ class MTAStation(Station):
     def compute_delay_state_diagram(self, paradigm, startdate, enddate, aggregate_wkdays=False):
         """This function computes the delay state diagrams based on the delay
            histograms"""
+
         self.delay_state = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict()))))
 
@@ -534,30 +566,61 @@ class MTAStation(Station):
         b = date(endyr, endmo, endday)
 
         if paradigm in ['l', 'lit', 'literal']:
-            for dt in rrule(DAILY, dtstart=a, until=b):
+
+            ### THEN GO OVER EACH DAY FOR EACH STATION AND CALCULATE DELAY STATES RELATIVE TO PARENTS ###
+            ### DELAY ARE ARRIVAL-EXPECTED TIM
+
+
+            for d, day in enumerate(self.days):
+                for h, hour in enumerate(self.hours):
+                    for m, minute in enumerate(self.sample_points):
+                        pass
+                        # this is just a simple subtraction and binning
+                        # self_delay_vec = self.calculate_delay_vector(day, hour, minute)
+
+
+
+
+
+            ### AFTER, CALCULATE nbinned HISTOGRAM BASED ON PARENT STATE, STATION STATE
+
+                """for dt in rrule(DAILY, dtstart=a, until=b):
                 d = dt.weekday()
                 day = self.days[d]
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
+                        tmstmp = self.find_timestamp(day, dt, hour, minute)
+                        # there are two key problems here. The delay vector contains the entire history of that timept
+                        # so this algo is recalculating at every tp ( this might be the only way to do it.)
+                        # doesn't matter b/c its fast..
 
-                        self.fill_delay_tensor(day, hour, minute)
-                        c = self.find_timestamp(day, dt, hour, minute)
+                        # is there a better way to do this?
+
+                        # we need to have the list of states for every point in the tensor.
+
+
+                        #### THIS IS WRONG BECAUSE IT NEEDS TO BE TUNED TO THE NUMBER OF HISTORY POINTS###
+                        #### THIS IS OVERWRITING ON EVERY DAY ####
+                        # self.fill_delay_tensor(day, hour, minute)
+
+
 
                         # Test here for occupancy of both self and parents
-                        occupied = self.sample_point_occupied(day, hour, minute)
+                        self_occupied = self.sample_point_occupied(day, hour, minute)
 
-                        #print occupied
+                        # Are parents occupied?
 
+                        # parents_occupied = SOMETHING
 
-                        if occupied and self.has_parents:
+                        if self_occupied and parents_occupied:
+
 
                             print "occupied: %s" % occupied
 
-                            self_delay_vec = self.calculate_delay_vector(c, day, hour, minute)
+                            self_delay_vec = self.calculate_delay_vector(tmstmp, day, hour, minute)
 
                             print 'self delay vec:'
                             print self_delay_vec
-
 
 
                             parent_delay_vecs = []
@@ -571,10 +634,12 @@ class MTAStation(Station):
                             print 'parent delay vecs'
                             print parent_delay_vecs
 
+
                             sys.exit(0)
 
-                            temp_delay_states = defaultdict(list)
-                            self.collect_concurrent_states(parent_delay_vecs, self_delay_vec, temp_delay_states)
+                            # temp_delay_states = defaultdict(list)
+                            # self.collect_concurrent_states(parent_delay_vecs, self_delay_vec, temp_delay_states)
+
 
                             print 'storing delay states'
                             self.store_delay_states(day, hour, minute, temp_delay_states)
@@ -584,7 +649,8 @@ class MTAStation(Station):
                             temp_delay_states[0] = self_delay_vec
                             self.store_delay_state_for_root_node(day, hour, minute, temp_delay_states)
                         else:
-                            print 'time point %s %s %s ignored for station %s' % (day,hour, minute, self.station_id)
+                            print 'time point %s %s %s ignored for station %s' % (day,hour, minute, self.station_id)"""
+
 
     def condense_delay_state_weekdays(self):
         weekdays = ['MON', 'TUE', 'WED', 'THU', 'FRI']
@@ -602,6 +668,10 @@ class MTAStation(Station):
             with open('%s_%s_MTA_historical_schedule.pkl' % (timestamp, self.station_id), 'wb') as outfile:
                 pickle.dump(self.historical_schedule, outfile)
 
+        if np.any(self.historical_timestamps):
+            with open('%s_%s_MTA_historical_timestamps.pkl' % (timestamp, self.station_id), 'wb') as outfile:
+                pickle.dump(self.historical_timestamps, outfile)
+
     def load_station_history(self, path):
 
         for dir_entry in os.listdir(path):
@@ -610,17 +680,36 @@ class MTAStation(Station):
                 name = dir_entry_path
 
                 if (name.split('_')[1] == self.station_id) and (name.split('.')[-1] == 'pkl'):
-                    try:
-                        with open(name,'rb') as f: # No need to specify 'r': this is the default.
-                            pkl_history = pickle.load(f)
-                            if not np.any(pkl_history):
-                                print 'An empty history was loaded for station %s' % self.station_id
+                    print "inside 1: %s" % name.split('.')
 
-                            self.historical_schedule = pkl_history
-                            print self.historical_schedule
-                    except IOError as exc:
-                        if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
-                            raise # Propagate other kinds of IOError.
+                    #print name.split('.')[0]
+                    if name.split('.')[1].split('_')[-1] == 'schedule':
+                        try:
+                            with open(name,'rb') as f:
+                                print 'schedule detected'
+                                pkl_history = pickle.load(f)
+                                if not np.any(pkl_history):
+                                     print 'An empty history was loaded for station %s' % self.station_id
+                                self.historical_schedule = pkl_history
+                                print self.historical_schedule
+                        except IOError as exc:
+                            if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
+                                raise # Propagate other kinds of IOError.
+
+                    if name.split('.')[1].split('_')[-1] == 'timestamps':
+                        try:
+                            with open(name,'rb') as f:
+                                print 'timestamps detected'
+                                pkl_timestamps = pickle.load(f)
+                                if not np.any(pkl_timestamps):
+                                    print 'An empty timestamp set was loaded for station %s' % self.station
+                                self.historical_timestamps = pkl_timestamps
+                                print self.historical_timestamps
+
+                        except IOError as exc:
+                            if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
+                                raise # Propagate other kinds of IOError.
+
 
 
 

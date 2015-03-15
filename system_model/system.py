@@ -100,16 +100,15 @@ class MTASystem(System):
                 stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
 
 
-
-
-    def compute_delay_histograms(self, paradigm, start_date, end_date,nbins):
+    def compute_delay_histograms(self, paradigm, start_date, end_date, nbins):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
 
             # stn.sample_history_from_db(cursor, start_date, end_date)
             # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-                stn.compute_delay_histogram(paradigm,start_date, end_date)
+
+                stn.compute_delay_histogram(paradigm, start_date, end_date)
 
                 print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
 
