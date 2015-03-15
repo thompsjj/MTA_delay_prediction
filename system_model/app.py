@@ -81,7 +81,7 @@ def main(argv):
 
 # Delay histograms need to be calculated first
 
-    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-01',10)
+    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-15',10)
 
     sys.exit(0)
     print 'computing state diagrams'

@@ -360,7 +360,9 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
-        for d, day in enumerate(self.days):
+        for dt in rrule(DAILY, dtstart=a, until=b):
+            d = dt.weekday()
+            day = self.days[d]
             for h, hour in enumerate(self.hours):
                 for m, minute in enumerate(self.sample_points):
                     if self.conf_schedule[day][hour][minute]:
@@ -375,11 +377,11 @@ class MTAStation(Station):
                             print self.conf_schedule[day][hour][minute].seconds
 
 
-                            reference_timepoint = \
+                            reference_timepoints = \
                                         self.conf_schedule[day][hour][minute].seconds+\
-                                        self.historical_timestamps[day][hour][minute][0]
+                                        np.asarray(self.historical_timestamps[day][hour][minute])
 
-                            print reference_timepoint
+                            print reference_timepoints
 
                             print 'historical schedule'
 
@@ -399,7 +401,7 @@ class MTAStation(Station):
                                     # Subtract the reference point from the historical schedule to get the naive delays
 
                             self.delay_schedule[day][hour][minute] = \
-                                       np.array(self.historical_schedule[day][hour][minute])-reference_timepoint
+                                       np.array(self.historical_schedule[day][hour][minute])-reference_timepoints
 
 
                             print self.delay_schedule[day][hour][minute]
