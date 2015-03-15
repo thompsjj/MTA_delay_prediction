@@ -110,7 +110,7 @@ class MTASystem(System):
 
                 stn.compute_delay_histogram(paradigm, start_date, end_date)
 
-                print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn._delay_schedule))
+                print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn.delay_schedule))
 
 
 

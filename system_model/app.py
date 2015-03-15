@@ -50,10 +50,11 @@ def main(argv):
     #mta_system.build(route_topology, None, reference_date)
 
     #for local applications only
-    '''cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')'''
+
+    cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
 
     # to connect to a remote db
-    cursor, conn = connect_to_db('mta_historical','postgres','ec2-54-67-95-112.us-west-1.compute.amazonaws.com','user')
+    #cursor, conn = connect_to_db('mta_historical','postgres','ec2-54-67-95-112.us-west-1.compute.amazonaws.com','user')
 
     try:
         cursor.execute("CREATE INDEX stid ON mta_historical_small USING gin (to_tsvector('english',stop_id));")
@@ -81,12 +82,12 @@ def main(argv):
 
 # Delay histograms need to be calculated first
 
-    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-15',10)
+    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-15', 10)
 
     sys.exit(0)
     print 'computing state diagrams'
 
-    mta_system.compute_delay_state_diagrams('l','2014-10-30', '2014-11-01',10)
+    mta_system.compute_delay_state_diagrams('l','2014-10-30', '2014-11-01', 10)
 
  #   mta_system.save_snapshot()
 
