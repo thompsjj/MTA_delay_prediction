@@ -8,6 +8,7 @@ Created on Tue Feb 24 08:23:34 2015
 
 from collections import defaultdict
 from datetime import date
+import datetime
 from dateutil.rrule import rrule, DAILY
 import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
@@ -17,7 +18,7 @@ import threading
 import time
 import itertools
 import numpy as np
-import sys, os, glob, errno
+import sys, os, time, errno
 from uniquelist import uniquelist
 from datetime_handlers import timedelta_from_timestring, \
     timestamp_from_refdt
@@ -45,6 +46,7 @@ class Station(object):
 class MTAStation(Station):
     def __init__(self, station_id):
         super(MTAStation, self).__init__(station_id)
+
         self.parent_delay_status = 1
         self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
         self.delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
@@ -70,6 +72,7 @@ class MTAStation(Station):
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
         self.delay_state_diagram = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+
         self.days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
         self.hours = ['00', '01', '02', '03', '04', '05', '06', '07', '08', \
@@ -84,71 +87,59 @@ class MTAStation(Station):
 
     # this is MTA 26H specific and should be in a descendent class
     def _pass_schedule_to_timedelta(self, ext_schedule):
-
         for day, sched in ext_schedule.iteritems():
-
-            for t, time in enumerate(sched):
-                self.schedule[day].append(timedelta_from_timestring(time))
+            for t, pt in enumerate(sched):
+                self.schedule[day].append(timedelta_from_timestring(pt))
 
             self.schedule[day] = np.asarray(sorted(self.schedule[day]))
 
 
     def set_schedule(self, ext_schedule, reference_date):
         self.reference_date = reference_date
+
         self._pass_schedule_to_timedelta(ext_schedule)
+
         self._calculate_conformal_schedule()
+
         self.schedule_set = True
 
 
     def _calculate_conformal_schedule(self):
-        # using queries, compute delays and map to stations. Thus we have a station-
-        # delay dataset where delays are calculated 12 times an hour using delay-
-        # frequency paradigm the station owns a histogram of delays
-        # this is as opposed to actual arrival - schedule paradigm which would be
-        # computed from a dynamic database.
-        def next_day(day, days):
-            return days[(days.index(day) + 1) % len(days)]
+        """ using queries, compute delays and map to stations. Thus we have a station-
+         delay dataset where delays are calculated 12 times an hour using delay-
+         frequency paradigm the station owns a histogram of delays
+         this is as opposed to actual arrival - schedule paradigm which would be
+         computed from a dynamic database."""
 
         for day in self.days:
+            # self.schedule should be in hours past midnight
             schedule_today = self.schedule[day]
+            current_sample_index = 0
             for hour in self.hours:
                 for minute in self.sample_points:
-
-                    # take a zip between actual time and difference between
-                    # this and the current time point
 
                     current_sample_pt = \
                         timedelta_from_timestring(hour + ':' + minute + ':00')
 
-                    # calculate point greater than zero but closest to 0
-                    check_pt = [z for z in zip((schedule_today - current_sample_pt), schedule_today) if
-                                z[0] > timedelta_from_timestring('00:00:00')]
+                    # print "station id: %s sampling %s %s %s %s" % (self.station_id, day, hour, minute, current_sample_pt)
 
+                    # calculate point greater than zero but closest to 0
+
+                    check_pt = [z for z in zip((schedule_today - current_sample_pt), schedule_today) if
+                                timedelta_from_timestring('00:05:00') > z[0] >= timedelta_from_timestring('00:00:00')]
+
+                    # print "next point in schedule"
+                    closest_train = None
                     if len(check_pt) > 0:
                         closest_train = min(check_pt, key=lambda x: x[0])[0]
 
-                    elif (hour == self.hours[-1]):
-                        closest_train = 'next'
-                    else:
-                        print '_calculate_conformal_schedule \n: \
-                        a major error occurred while setting \n \
-                        the schedule for station %s' % (self.station_id)
-                        print "%s %s" % (hour, minute)
+                    """else:
+                        print '_calculate_conformal_schedule: \n \
+                        no trains were found while setting the schedule for the schedule for station %s on %s %s %s'\
+                              % (self.station_id, day, hour, minute)"""
 
-                    # the conformal time is this minumum distance to the point
                     self.conf_schedule[day][hour][minute] = closest_train
-
-
-        # we resolve the 'next' flags here.
-        for d, day in enumerate(self.days):
-            for h, hour in enumerate(self.hours):
-                for m, minute in enumerate(self.sample_points):
-                    if self.conf_schedule[day][hour][minute] == 'next':
-                        self.conf_schedule[day][hour][minute] = \
-                            self.conf_schedule[next_day(day, self.days)] \
-                                [self.hours[0]][self.sample_points[0]] \
-                            + timedelta_from_timestring('00:05:00')
-
+                    current_sample_index += 1
 
     def sample_history_from_db(self, cursor, startdate, enddate):
         from mta_database_handlers import query_mta_historical_closest_train_between
@@ -198,8 +189,8 @@ class MTAStation(Station):
 
     def sample_history_from_db_threaded(self, startdate, enddate, database, \
                                         table_name, user, host, password):
-
         start_outer = time.clock()
+        stride = 299 # less than 5 minute stride
 
         s = startdate.split('-')
         startyr = int(s[0])
@@ -214,7 +205,7 @@ class MTAStation(Station):
         a = date(startyr, startmo, startday)
         b = date(endyr, endmo, endday)
 
-        max_tstamp = timestamp_from_refdt(self.hours[-1], self.sample_points[-1], b, 'US/Eastern') + 3600
+        # max_tstamp = timestamp_from_refdt(self.hours[-1], self.sample_points[-1], b, 'US/Eastern') + 3600
 
         sample_tstamp = []
         THREAD_NAMES = []
@@ -222,7 +213,7 @@ class MTAStation(Station):
         for dt in rrule(DAILY, dtstart=a, until=b):
             for hour in self.hours:
                 for minute in self.sample_points:
-                    sample_tstamp.append(timestamp_from_refdt(hour, minute, dt, 'US/Eastern') + 3600)
+                    sample_tstamp.append(timestamp_from_refdt(hour, minute, dt, 'US/Eastern'))
                     THREAD_NAMES.append(
                         "Thread: %s :: %s :%s:%s" % (self.station_id, dt.strftime("%Y-%m-%d"), hour, minute))
                     sample_names.append((dt, hour, minute))
@@ -257,9 +248,13 @@ class MTAStation(Station):
                 print 'response: %s' % l"""
 
                 if not l:
-                    print 'no historical schedule time was found'
-                    return 0
+                    print "failed query:"
+                    print query
+
+                    #set this to None
+                    return None
                 else:
+                    print "%s time found: %s" % (name, datetime.datetime.fromtimestamp(l[0]['eta_sample']))
                     return l[0]['eta_sample']
 
             except psycopg2.ProgrammingError, err:
@@ -276,10 +271,7 @@ class MTAStation(Station):
         def chunker(seq, size):
             return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
-
         CHUNK_SIZE = 50
-
-        threads = []
         results = []
 
         ## CHUNK THREADS INTO FLIGHTS ##
@@ -304,7 +296,7 @@ class MTAStation(Station):
                 t = threading.Thread(target=wrapper, name=name, \
                                      args=( select_func, (conn_select, table_name, \
                                                           self.station_id, sample_tstamp[i + c * CHUNK_SIZE],
-                                                          max_tstamp), \
+                                                          sample_tstamp[i + c * CHUNK_SIZE]+stride), \
                                             sample_names[i + c * CHUNK_SIZE], res))
 
                 t.setDaemon(0)
@@ -321,7 +313,6 @@ class MTAStation(Station):
             conn_select.closeall()
 
         for i, result in enumerate(results):
-            #timestamp_from_refdt(self.hours[-1],self.sample_points[-1],b,'US/Eastern')+3600
             day = self.days[result[1][0].weekday()]
             hour = result[1][1]
             minute = result[1][2]
@@ -360,6 +351,7 @@ class MTAStation(Station):
             for h, hour in enumerate(self.hours):
                 for m, minute in enumerate(self.sample_points):
                     if self.conf_schedule[day][hour][minute]:
+                        # THIS NEEDS TO BE REWRITTEN FOR THE NEW PARADIGM
                         if self.historical_timestamps[day][hour][minute] \
                                 and self.historical_schedule[day][hour][minute]:
 
@@ -373,7 +365,7 @@ class MTAStation(Station):
 
                             self.delay_schedule[day][hour][minute] = np.array(self.historical_schedule[day][hour][minute])-reference_timepoints
                             histo = np.histogram(self.delay_schedule[day][hour][minute], bins=(self.delay_nbins-1))
-
+                            self.delay_bins[day][hour][minute] = histo[1]
                             self.delay_state[day][hour][minute] = np.digitize(self.delay_schedule[day][hour][minute], bins=(histo[1]))-1
                             self.delays_computed = 1
 
@@ -400,6 +392,7 @@ class MTAStation(Station):
                                 parent_states = []
                                 for p in self.parent_stations:
                                     parent_states.append(p.delay_state[day][hour][minute][e])
+
                                 self.delay_state_diagram[day][hour][minute][tuple(parent_states)].append(value)
 
                         elif self.has_parents and not self.parent_delay_status:
@@ -411,6 +404,7 @@ class MTAStation(Station):
                                         parent_states.append(p.delay_state[day][hour][minute][e])
                                     else:
                                         parent_states.append(0)
+
                                 self.delay_state_diagram[day][hour][minute][tuple(parent_states)].append(value)
                         else:
                             for e, value in enumerate(self.delay_state[day][hour][minute]):
@@ -420,22 +414,29 @@ class MTAStation(Station):
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
                         for s, state in enumerate(self.enumerate_parent_states()):
-                            # set np histogram here
                             self.delay_state_diagram[day][hour][minute][state] = \
-                                np.histogram(self.delay_state_diagram[day][hour][minute][state], bins=(self.delay_nbins-1))
+                                np.histogram(self.delay_state_diagram[day][hour][minute][state], bins=(self.delay_nbins-1))[0]
 
     def enumerate_parent_states(self):
         if self.has_parents and self.parent_delay_status:
             parent_states = []
             for p in self.parent_stations:
-                parent_states.append()
+                parent_states.append([z for z in range(p.delay_nbins)])
             return list(itertools.product(*parent_states))
 
         elif self.has_parents and not self.parent_delay_status:
-            pass
+            parent_states = []
+            for p in self.parent_stations:
+                if self.delays_computed:
+                    parent_states.append([z for z in range(p.delay_nbins)])
+                else:
+                    parent_states.append([0])
+            return list(itertools.product(*parent_states))
         else:
-            pass
+            return [(0,)]
 
+
+    #def rectify_delay_state_histograms(self):
 
 
 
@@ -444,7 +445,7 @@ class MTAStation(Station):
         for day in self.days():
             for hour in self.hours():
                 for minute in self.minutes():
-                    for st in self.parent_states:
+                    for st in self.enumerate_parent_states():
                         if day in weekdays:
                             self.delay_state['WKD'][hour][minute][st] += self.delay_state[day][hour][minute][st]
 

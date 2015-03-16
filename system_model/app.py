@@ -3,53 +3,50 @@ import sys, os
 from schedule_tables import schedule_table, mta_route_schedule
 from topology import Topology
 from system import System, MTASystem
+import time, datetime
 import psycopg2
 from psycopg2.extras import DictCursor
 from sql_interface import connect_to_local_db, \
     connect_to_db, sample_local_db_dict_cursor
-
+import dill as pickle
 import json
 
 
 
 
 def main(argv):
-    mode = 'LOAD'
-    # load schedule table
+    mode = 'LOAD_SYS_STORE_HIST'
 
-        # load line tables
-        #print "getting stations"
-
-        #stations = overall_schedule.get_stations()
-
-        #print stations
-
-        #print overall_schedule.get_station('J14S')
-
-        #print overall_schedule.get_route('J')
-
-    mta_routes = mta_route_schedule()
-    mta_routes.build('../google_transit/corrected_stop_times.txt', \
+    if mode == 'STORE':
+        mta_routes = mta_route_schedule()
+        mta_routes.build('../google_transit/corrected_stop_times.txt', \
         '../google_transit/stops.txt')
-    # construct topofile using schedule and line tables
 
-    route_topology = Topology()
+        # construct topofile using schedule and line tables
 
-    # the topology can be updated with as many routes and joinfiles as desired
-    # here we are just testing route 1
+        route_topology = Topology()
 
-    route_topology.add_mta_route(mta_routes.get_route('1'),'1')
+        route_topology.add_mta_route(mta_routes.get_route('1'),'1')
+
+        reference_date = '2013-12-15-6-349-0-0-0'
+
+        mta_system = MTASystem()
+        mta_system.build(route_topology, mta_routes, reference_date, 10)
+
+        print mta_system.station['101S'].conf_schedule['MON']['00']
+
+        tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
+
+        with open('%s_MTA_system.pkl' % (tmstmp), 'wb') as outfile:
+            pickle.dump(mta_system, outfile)
+
+    elif mode == "LOADALL" or mode == 'LOAD_SYS_STORE_HIST':
+        with open('1426540886_MTA_system.pkl', 'rb') as infile:
+            mta_system = pickle.load(infile)
 
 
-    # construct a system from topofile
-    reference_date = '2013-12-15-6-349-0-0-0'
-
-    mta_system = MTASystem()
-    mta_system.build(route_topology, mta_routes, reference_date, 10)
-
-    #mta_system.build(route_topology, None, reference_date)
-
-    #for local applications only
+    for k, v in mta_system.station['104S'].conf_schedule['MON']['00'].iteritems():
+        print "%s: %s" % (k, v)
 
     cursor, conn = connect_to_local_db('mta_historical','postgres','postgres')
 
@@ -71,27 +68,25 @@ def main(argv):
 
     # map arrivals times to stations
 
-    if mode=='STORE':
-        mta_system.sample_arrival_times_from_db('2014-10-30', '2014-11-15','mta_historical','mta_historical_small', 'postgres', 'ec2-54-67-95-112.us-west-1.compute.amazonaws.com', 'user')
+    if mode == 'STORE' or mode == 'LOAD_SYS_STORE_HIST':
+        mta_system.sample_arrival_times_from_db('2014-11-24', '2014-11-25','mta_historical','mta_historical_small', 'postgres', 'localhost', 'user')
         mta_system.save_history()
         sys.exit(1)
-    else:
+    elif mode == 'LOAD' or mode == 'LOAD_ALL':
         print 'attempting to load history'
         mta_system.load_history('./history2')
 
-
 # Delay histograms need to be calculated first
-
-    mta_system.compute_delay_histograms('l','2014-10-30', '2014-11-15', 10)
+    sys.exit(0)
+    mta_system.compute_delay_histograms('l', '2014-11-24', '2014-11-25', 10)
 
     print 'computing state diagrams'
 
-    mta_system.compute_delay_state_diagrams('l','2014-10-30', '2014-11-01', 10)
+    mta_system.compute_delay_state_diagrams('l','2014-11-24', '2014-11-25', 10)
 
  #   mta_system.save_snapshot()
 
-
-   # mta_system.save_delay_state_file()
+    mta_system.save_delay_state_file()
 
 
    # mta_system.discrete_bayesian(target_file)

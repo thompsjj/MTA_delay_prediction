@@ -11,6 +11,7 @@ from station import Station, MTAStation
 import sys, os
 import numpy as np
 import time, datetime
+import json
 # The system structure owns all lines, stations and trips, 
 # and it owns all update methods from the top down. 
 
@@ -67,11 +68,9 @@ class System(object):
         trains and trips for every day that belong to this station'''
 
         for stid, stn in self.station.iteritems():
-
-            if stid in ['126N','127N','128N']: #remove after scale up
-
-                stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
-                stn.delay_nbins = nbins
+            print "populating station: %s" % stid
+            stn.set_schedule(schedule.table[stid]['arrivals'], reference_date)
+            stn.delay_nbins = nbins
 
     def __repr__(self):
         print self.isBuilt
@@ -82,6 +81,7 @@ class MTASystem(System):
 
     def __init__(self):
         super(MTASystem, self).__init__()
+        self.weekdays_condensed = False
         self.num_lines = 0
         self.num_stations = 0
         self.isBuilt = False
@@ -91,41 +91,26 @@ class MTASystem(System):
 
 
     def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
-
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: # remove after scale up
-
-                # stn.sample_history_from_db(cursor, start_date, end_date)
-                # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-                stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)   
+            stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)
 
 
     def compute_delay_histograms(self, paradigm, start_date, end_date, nbins):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: # remove after scale up
+            stn.compute_delay_histogram(paradigm, start_date, end_date)
 
-            # stn.sample_history_from_db(cursor, start_date, end_date)
-            # stn.sample_history_from_db_parallel('mta_historical','mta_historical_small',start_date, end_date)
-
-                stn.compute_delay_histogram(paradigm, start_date, end_date)
-
-                print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn.delay_schedule))
+            print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn.delay_schedule))
 
 
-
-    def compute_delay_state_diagrams(self, paradigm, start_date, end_date,nbins):
+    def compute_delay_state_diagrams(self, paradigm,nbins):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: # remove after scale up
-
-                stn.compute_delay_state_diagram(paradigm)
-                print stn.delay_state_diagram
+            stn.compute_delay_state_diagram(paradigm)
 
     def _read_topology(self, topology):
 
         print 'reading topology'
-
 
         if isinstance(topology, Topology):
 
@@ -145,40 +130,43 @@ class MTASystem(System):
             """for stid, station in self.station.iteritems():
                 print "my id: %s" % (stid)
                 if station.has_parents:
-                    print "my parents: %s" % station.parent_stations_names
-            sys.exit(0)"""
+                    print "my parents: %s" % station.parent_stations_names"""
 
 
     def save_snapshot(self):
         tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: #remove after scale up
-                stn.save_delay_histos(tmstmp)
+            stn.save_delay_histos(tmstmp)
 
 
     def save_history(self):
         tmstmp = int(time.mktime(datetime.datetime.now().timetuple()))
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: #remove after scale up
-                stn.save_station_history(tmstmp)
+            stn.save_station_history(tmstmp)
 
 
     def condense_weekdays(self):
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: #remove after scale up
-                stn.condense_weekdays()
+            stn.condense_delay_state_weekdays()
+        self.weekdays_condensed = True
+
+    def rectify_histograms(self):
+        for stid, stn in self.station.iteritems(self):
+            pass
+  ##          stn.rectify_delay_state_histograms()
 
 
     def load_history(self, target_dir):
         for stid, stn in self.station.iteritems():
-            if stid in ['126N','127N','128N']: #remove after scale up
-                stn.load_station_history(target_dir)
+            stn.load_station_history(target_dir)
 
 
 
     def save_delay_state_file(self):
-        outputdict = {}
+        # outputdict = defaultdict(
+        # lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict()))))
 
+        outputdict = {}
 
         ### OUTPUT VERTICES AND EDGES ###
 
@@ -186,46 +174,68 @@ class MTASystem(System):
         outputdict["E"] = []
 
         for stid, station in self.station.iteritems():
-            if stid in ['126N','127N','128N']:
-                outputdict["V"].append(stid)
-                edge_set = []
-                for stid_e in enumerate(station.neighbor_stations_names):
-                    edge_set.append([stid, stid_e])
-                outputdict["E"].append(edge_set)
-
+            outputdict["V"].append(stid)
+            edge_set = []
+            for stid_e in enumerate(station.neighbor_stations_names):
+                edge_set.append([stid, stid_e])
+            outputdict["E"].append(edge_set)
 
         outputdict["Vdata"] = {}
 
         for stid, station in self.station.iteritems():
-            if stid in ['126N','127N','128N']:
-                outputdict["Vdata"][stid] = {}
-                outputdict["Vdata"][stid]["numoutcomes"] = station._delay_nbins
-                outputdict["Vdata"][stid]["vals"] = [x for x in xrange(0,station._delay_nbins)]
-                outputdict["Vdata"][stid]["parents"] = station.parent_stations_names
-                outputdict["Vdata"][stid]["children"] = station.child_stations_names
+            outputdict["Vdata"][stid] = {}
+            outputdict["Vdata"][stid]["numoutcomes"] = station.delay_nbins
+            outputdict["Vdata"][stid]["vals"] = [x for x in xrange(0, station.delay_nbins)]
 
-             ########## BUILD CPROB HERE #################
+            if station.parent_stations_names:
+                outputdict["Vdata"][stid]["parents"] = list(station.parent_stations_names)
+            else:
+                outputdict["Vdata"][stid]["parents"] = None
 
+            if station.child_stations_names:
+                outputdict["Vdata"][stid]["children"] = list(station.child_stations_names)
+            else:
+                outputdict["Vdata"][stid]["children"] = None
+
+            ########## BUILD CPROB HERE #################
+
+            if self.weekdays_condensed:
                 outputdict["Vdata"][stid]["cprob"] = {}
-                for d, day in enumerate(station.days):
+                for d, day in enumerate(['WKD', 'SAT', 'SUN']):
                     for h, hour in enumerate(station.hours):
                         for m, minute in enumerate(station.sample_points):
-                            for k, v in station.delay_state[day][hour][minute].iteritems():
+                            for k, v in station.delay_state_diagram[day][hour][minute].iteritems():
                                 index = "['%s']['%s']['%s']" % (day, hour, minute)
                                 for i, e in enumerate(k):
                                     index += "['%s']" % e
 
-                                #print 'iterating'
-                               # print k
-                                #print index
-                                #print station.delay_states[day][hour][minute][k]
-                                outputdict["Vdata"][stid]["cprob"][index] = station.delay_state[day][hour][minute][k]
+                                    """print 'iterating'
+                                    print k
+                                    print index
+                                    print station.delay_states[day][hour][minute][k]"""
 
+                                outputdict["Vdata"][stid]["cprob"][index] = list(v)
 
+            else:
+                outputdict["Vdata"][stid]["cprob"] = {}
+                for d, day in enumerate(station.days):
+                    for h, hour in enumerate(station.hours):
+                        for m, minute in enumerate(station.sample_points):
+                            for k, v in station.delay_state_diagram[day][hour][minute].iteritems():
+                                index = "['%s']['%s']['%s']" % (day, hour, minute)
+                                for i, e in enumerate(k):
+                                    index += "['%s']" % e
 
-      # for k, v in outputdict["Vdata"]['127N']["cprob"].iteritems():
-        #    print k
-         #   print v'''
+                                    """print 'iterating'
+                                    print k
+                                    print index
+                                    print station.delay_states[day][hour][minute][k]"""
+
+                                outputdict["Vdata"][stid]["cprob"][index] = list(v)
+
+        with open('delay_state.txt', 'w') as fp:
+            json.dump(outputdict, fp)
+
 
 
 
