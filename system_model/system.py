@@ -118,10 +118,9 @@ class MTASystem(System):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
             if stid in ['126N','127N','128N']: # remove after scale up
-                stn.compute_parent_states()
 
-                stn.compute_delay_state_diagram(paradigm, start_date, end_date, nbins)
-
+                stn.compute_delay_state_diagram(paradigm)
+                print stn.delay_state_diagram
 
     def _read_topology(self, topology):
 

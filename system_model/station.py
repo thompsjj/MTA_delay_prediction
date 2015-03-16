@@ -45,6 +45,7 @@ class Station(object):
 class MTAStation(Station):
     def __init__(self, station_id):
         super(MTAStation, self).__init__(station_id)
+        self.parent_delay_status = 1
         self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
         self.delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self.parent_states = [0]
@@ -67,6 +68,8 @@ class MTAStation(Station):
         self.historical_index = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
         self.delay_state = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
+        self.delay_state_diagram = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self.days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
         self.hours = ['00', '01', '02', '03', '04', '05', '06', '07', '08', \
@@ -369,205 +372,71 @@ class MTAStation(Station):
                             # Subtract the reference point from the historical schedule to get the naive delays
 
                             self.delay_schedule[day][hour][minute] = np.array(self.historical_schedule[day][hour][minute])-reference_timepoints
-                            histo = np.histogram(self.delay_schedule[day][hour][minute], bins=self.delay_nbins)
+                            histo = np.histogram(self.delay_schedule[day][hour][minute], bins=(self.delay_nbins-1))
 
-                            self.delay_state[day][hour][minute] = np.digitize(self.delay_schedule[day][hour][minute], bins=histo[1]-1)
+                            self.delay_state[day][hour][minute] = np.digitize(self.delay_schedule[day][hour][minute], bins=(histo[1]))-1
                             self.delays_computed = 1
 
 
-    def collect_concurrent_states(self, parent_state_vector, self_state_vector, temp_state_vector):
-        for e, element in enumerate(self_state_vector):
-
-            # NEEDS RECODING. WE HAVE THE PARENT STATES
-            pass
-        pass
-
-    def store_delay_states(self, day, hour, minute, temp_delay_states):
-        for k, v in temp_delay_states.iteritems():
-
-            print "inside storing delay states: %s %s" % (k,v)
-
-            # changing now, but producing a strange vector of delay states with no difference in parent state
-
-            time.sleep(5)
-
-            self.delay_state[day][hour][minute][k] = \
-                np.histogram(v, bins=self.delay_nbins, range=(0, self.delay_nbins),normed=False)[0]
-
-    def store_delay_state_for_root_node(self, day, hour, minute, temp_delay_states):
-        self.delay_state[day][hour][minute][0] = \
-                np.histogram(temp_delay_states[0], bins=self.delay_nbins, range=(0, self.delay_nbins))[0]
-
-    def find_timestamp(self, day, dt, hour, minute):
-        ref = timestamp_from_refdt(hour, minute, dt, 'US/Eastern') + 3600
-        return float(self.conf_schedule[day][hour][minute].seconds) + ref
-
-
-    def compute_parent_states(self):
-
-        """This function produces a list of joint states, enumerated by the
-        bins of the n parents of this station.
-        INPUT: self (station)
-        OUTPUT: None """
-
-        # usually uniform
-        histogram_size = []
-        if self.has_parents:
-            # "parent stations not getting appended"
-           # print self.parent_stations
-            for st, station in enumerate(self.parent_stations):
-                # need to set nbins upstream
-                if station.delay_nbins:
-                    histogram_size.append([b for b in xrange(station.delay_nbins)])
-                   # print 'delay bins: %s' % station.delay_nbins
-                else:
-                    histogram_size.append([0])
-           # print 'histogram size'
-           # print histogram_size
-            self.parent_states = [i for i in itertools.product(*histogram_size)]
-
-           # print "I AM %s ; parent states:" % (self.station_id)
-           # print self.parent_states
-           # time.sleep(5)
-
-
-
-    def fill_delay_tensor(self, day, hour, minute):
-        """ This function fills the delay tensor with zeros so to avoid null value problems """
-
-        # Precompute the number of parent states here if this node has parents.
-
-        if self.has_parents:
-            # if this station has parents
-
-            for i, st in enumerate(self.parent_states):
-                self.delay_state[day][hour][minute][st] = [0 for x in xrange(self.delay_nbins)]
-        else:
-            # in the case that this is a source node, there is only one parent state.
-
-            self.delay_state[day][hour][minute][0] = [0 for x in xrange(self.delay_nbins)]
-
-
-    def sample_point_occupied(self, day, hour, minute):
-
-        print 'historical schedule:'
-        print self.historical_schedule[day][hour][minute]
-        time.sleep(1)
-
-        if np.any(self.historical_schedule[day][hour][minute]):
-            return True
-        else:
-            return False
-
-    def calculate_delay_vector(self, c, day, hour, minute):
-        print 'conf. reference time: %s' % c
-        delay_vec = [v - c if v - c > 0 else 0 for v in self.historical_schedule[day][hour][minute]]
-        return delay_vec
-
-    def compute_delay_state_diagram(self, paradigm, startdate, enddate, aggregate_wkdays=False):
+    def compute_delay_state_diagram(self, paradigm):
         """This function computes the delay state diagrams based on the delay
-           histograms"""
+           states. This means that the function determines the JOINT state of the parents (usually 1)
+           and stores the state of self in the history dependent on the parents"""
 
-        # hacky due to non condensed histograms
-
-        s = startdate.split('-')
-        startyr = int(s[0])
-        startmo = int(s[1])
-        startday = int(s[2])
-
-        e = enddate.split('-')
-        endyr = int(e[0])
-        endmo = int(e[1])
-        endday = int(e[2])
-
-        a = date(startyr, startmo, startday)
-        b = date(endyr, endmo, endday)
+        if self.has_parents:
+            for p in self.parent_stations:
+                self.parent_delay_status *= p.delays_computed
+            print "parent delay status: %s" % self.parent_delay_status
 
         if paradigm in ['l', 'lit', 'literal']:
-
-            ### THEN GO OVER EACH DAY FOR EACH STATION AND CALCULATE DELAY STATES RELATIVE TO PARENTS ###
-            ### DELAY ARE ARRIVAL-EXPECTED TIM
-
 
             for d, day in enumerate(self.days):
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
-                        pass
-                        # this is just a simple subtraction and binning
-                        # self_delay_vec = self.calculate_delay_vector(day, hour, minute)
+                        if self.has_parents and self.parent_delay_status:
 
+                            # collect delay states into diagram
+                            for e, value in enumerate(self.delay_state[day][hour][minute]):
+                                parent_states = []
+                                for p in self.parent_stations:
+                                    parent_states.append(p.delay_state[day][hour][minute][e])
+                                self.delay_state_diagram[day][hour][minute][tuple(parent_states)].append(value)
 
+                        elif self.has_parents and not self.parent_delay_status:
+                            # compute the delay diagram with modified parent states
+                            for e, value in enumerate(self.delay_state[day][hour][minute]):
+                                parent_states = []
+                                for p in self.parent_stations:
+                                    if p.delays_computed:
+                                        parent_states.append(p.delay_state[day][hour][minute][e])
+                                    else:
+                                        parent_states.append(0)
+                                self.delay_state_diagram[day][hour][minute][tuple(parent_states)].append(value)
+                        else:
+                            for e, value in enumerate(self.delay_state[day][hour][minute]):
+                                self.delay_state_diagram[day][hour][minute][tuple([0])].append(value)
 
-
-
-            ### AFTER, CALCULATE nbinned HISTOGRAM BASED ON PARENT STATE, STATION STATE
-
-                """for dt in rrule(DAILY, dtstart=a, until=b):
-                d = dt.weekday()
-                day = self.days[d]
+            for d, day in enumerate(self.days):
                 for h, hour in enumerate(self.hours):
                     for m, minute in enumerate(self.sample_points):
-                        tmstmp = self.find_timestamp(day, dt, hour, minute)
-                        # there are two key problems here. The delay vector contains the entire history of that timept
-                        # so this algo is recalculating at every tp ( this might be the only way to do it.)
-                        # doesn't matter b/c its fast..
+                        for s, state in enumerate(self.enumerate_parent_states()):
+                            # set np histogram here
+                            self.delay_state_diagram[day][hour][minute][state] = \
+                                np.histogram(self.delay_state_diagram[day][hour][minute][state], bins=(self.delay_nbins-1))
 
-                        # is there a better way to do this?
+    def enumerate_parent_states(self):
+        if self.has_parents and self.parent_delay_status:
+            parent_states = []
+            for p in self.parent_stations:
+                parent_states.append()
+            return list(itertools.product(*parent_states))
 
-                        # we need to have the list of states for every point in the tensor.
-
-
-                        #### THIS IS WRONG BECAUSE IT NEEDS TO BE TUNED TO THE NUMBER OF HISTORY POINTS###
-                        #### THIS IS OVERWRITING ON EVERY DAY ####
-                        # self.fill_delay_tensor(day, hour, minute)
-
-
-
-                        # Test here for occupancy of both self and parents
-                        self_occupied = self.sample_point_occupied(day, hour, minute)
-
-                        # Are parents occupied?
-
-                        # parents_occupied = SOMETHING
-
-                        if self_occupied and parents_occupied:
+        elif self.has_parents and not self.parent_delay_status:
+            pass
+        else:
+            pass
 
 
-                            print "occupied: %s" % occupied
-
-                            self_delay_vec = self.calculate_delay_vector(tmstmp, day, hour, minute)
-
-                            print 'self delay vec:'
-                            print self_delay_vec
-
-
-                            parent_delay_vecs = []
-                            for p in self.parent_stations:
-                                print "parent: %s" % (p.station_id)
-                                parent_delay_vecs.append(p.calculate_delay_vector(c, day, hour, minute))
-                                print parent_delay_vecs
-
-                            # collect concurrent states into a single vector
-
-                            print 'parent delay vecs'
-                            print parent_delay_vecs
-
-
-                            sys.exit(0)
-
-                            # temp_delay_states = defaultdict(list)
-                            # self.collect_concurrent_states(parent_delay_vecs, self_delay_vec, temp_delay_states)
-
-
-                            print 'storing delay states'
-                            self.store_delay_states(day, hour, minute, temp_delay_states)
-
-                        elif occupied:
-                            temp_delay_states = defaultdict(list)
-                            temp_delay_states[0] = self_delay_vec
-                            self.store_delay_state_for_root_node(day, hour, minute, temp_delay_states)
-                        else:
-                            print 'time point %s %s %s ignored for station %s' % (day,hour, minute, self.station_id)"""
 
 
     def condense_delay_state_weekdays(self):
