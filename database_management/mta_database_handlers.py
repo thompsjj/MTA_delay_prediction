@@ -47,10 +47,14 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
                     #create reference timestamp
                     reference_timestamp = timestamp_from_timept(fulltime,\
                      'US/Eastern')
-
-                    history = parse_mta_historical(\
+                    try:
+                        history = parse_mta_historical(\
                         parse_mta_api_to_json(target_url),reference_timestamp)
-
+                    except:
+                        fname = '%s_failed_samples.txt' % table_name
+                        with open(fname, 'a+') as errf:
+                            errf.write("%s\n" % fulltime)
+                            errf.close()
                     if np.any(history):
                         for i, entry in enumerate(history):
                             update_mta_eta_schema(cur, table_name, entry)
@@ -58,7 +62,7 @@ def sample_mta_historical(cur, table_name, point_at, startdate, enddate):
                         fname = '%s_failed_samples.txt' % table_name
                         with open(fname, 'a+') as errf:
                             errf.write("%s\n" % fulltime)
-        errf.close()
+                            errf.close()
 
 ###############################################################################
 

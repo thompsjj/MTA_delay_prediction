@@ -19,7 +19,7 @@ def main(argv):
 
     create_mta_eta_schema(cursor, 'mta_historical_small')
     sample_mta_historical(cursor, 'mta_historical_small', \
-     'https://datamine-history.s3.amazonaws.com/', '2014-10-30', '2015-01-30')
+     'https://datamine-history.s3.amazonaws.com/', '2014-11-23', '2015-01-30')
 
     print check_mta_eta_schema(cursor, 'mta_historical_small', 10)
     print size_mta_eta_schema(cursor, 'mta_historical_small')
