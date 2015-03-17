@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 24 08:23:34 2015
@@ -24,6 +23,7 @@ from datetime_handlers import timedelta_from_timestring, \
     timestamp_from_refdt
 import dill as pickle
 
+
 class Station(object):
     def __init__(self, station_id):
         self.station_id = station_id
@@ -48,8 +48,6 @@ class MTAStation(Station):
         super(MTAStation, self).__init__(station_id)
 
         self.parent_delay_status = 1
-        self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
-        self.delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self.parent_states = [0]
         self.station_id = station_id
         self.neighbor_stations = uniquelist()
@@ -72,6 +70,15 @@ class MTAStation(Station):
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
         self.delay_state_diagram = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+        self.delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict())))
+        self.delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+
+        self.hour_delay_state = defaultdict(
+            lambda: defaultdict(lambda: defaultdict()))
+        self.hour_delay_state_diagram = defaultdict(
+            lambda: defaultdict(lambda: defaultdict()))
+        self.hour_delay_bins = defaultdict(lambda: defaultdict(lambda: defaultdict()))
+        self.hour_delay_schedule = defaultdict(lambda: defaultdict(lambda: defaultdict()))
 
         self.days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
@@ -161,7 +168,7 @@ class MTAStation(Station):
         max_tstamp = timestamp_from_refdt(self.hours[-1], self.sample_points[-1], b, 'US/Eastern') + 3600
 
         interval = []
-        #unroll inner loop
+        # unroll inner loop
         for hour in self.hours:
             for minute in self.sample_points:
                 interval.append((hour, minute))
@@ -182,7 +189,8 @@ class MTAStation(Station):
         for day in self.days:
             for hour in self.hours:
                 for minute in self.sample_points:
-                    self.historical_schedule[day][hour][minute] = np.asarray(self.historical_schedule[day][hour][minute])
+                    self.historical_schedule[day][hour][minute] = np.asarray(
+                        self.historical_schedule[day][hour][minute])
 
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
 
@@ -190,7 +198,7 @@ class MTAStation(Station):
     def sample_history_from_db_threaded(self, startdate, enddate, database, \
                                         table_name, user, host, password):
         start_outer = time.clock()
-        stride = 299 # less than 5 minute stride
+        stride = 299  # less than 5 minute stride
 
         s = startdate.split('-')
         startyr = int(s[0])
@@ -248,13 +256,13 @@ class MTAStation(Station):
                 print 'response: %s' % l"""
 
                 if not l:
-                    print "failed query:"
-                    print query
+                    # print "failed query:"
+                    #print query
 
                     #set this to None
                     return None
                 else:
-                    print "%s time found: %s" % (name, datetime.datetime.fromtimestamp(l[0]['eta_sample']))
+                    # print "%s time found: %s" % (name, datetime.datetime.fromtimestamp(l[0]['eta_sample']))
                     return l[0]['eta_sample']
 
             except psycopg2.ProgrammingError, err:
@@ -271,13 +279,13 @@ class MTAStation(Station):
         def chunker(seq, size):
             return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
 
-        CHUNK_SIZE = 50
+        CHUNK_SIZE = 25
         results = []
 
         ## CHUNK THREADS INTO FLIGHTS ##
 
         for c, chunk in enumerate(chunker(THREAD_NAMES, CHUNK_SIZE)):
-            #print "chunk %s" % c
+            # print "chunk %s" % c
             min_t = 1
             max_t = CHUNK_SIZE
             threads = []
@@ -296,7 +304,7 @@ class MTAStation(Station):
                 t = threading.Thread(target=wrapper, name=name, \
                                      args=( select_func, (conn_select, table_name, \
                                                           self.station_id, sample_tstamp[i + c * CHUNK_SIZE],
-                                                          sample_tstamp[i + c * CHUNK_SIZE]+stride), \
+                                                          sample_tstamp[i + c * CHUNK_SIZE] + stride), \
                                             sample_names[i + c * CHUNK_SIZE], res))
 
                 t.setDaemon(0)
@@ -307,7 +315,7 @@ class MTAStation(Station):
 
             for i, t in enumerate(threads):
                 t.join()
-                print t.getName(), "exited OK"
+                # print t.getName(), "exited OK"
 
             results.extend(res)
             conn_select.closeall()
@@ -324,51 +332,158 @@ class MTAStation(Station):
         print "full loop: %s station: %s" % ((time.clock() - start_outer), (self.station_id))
         print self.historical_schedule
 
-
-    def compute_delay_histogram(self, paradigm, startdate, enddate):
+    def compute_hourly_delay_histogram(self, paradigm, stride):
 
         """Calculates the delay histograms from histories and conformal schedule
-        stored to the object. Uses a delay paradigm, either projective or literal
+        stored to the object. Uses only the hourly delay paradigm
         INPUT: self, int (number of bins)  (schedules as stored in object)
         OUTPUT: bool (success) (delay histos are stored back to object)"""
 
-        #print self.station_id
+        def fill_values(array, fill_val):
+            for i, l in enumerate(array):
+                if len(l) < len(max(array, key=len)):
+                    while len(l) < len(max(array, key=len)):
+                        l.append(fill_val)
 
-        s = startdate.split('-')
-        startyr = int(s[0])
-        startmo = int(s[1])
-        startday = int(s[2])
+        def fill_against_array(array, fill_arr):
+            for i, l in enumerate(array):
+                if len(l) < len(max(array, key=len)):
+                    while len(l) < len(max(array, key=len)):
+                        l.append(fill_arr[i])
 
-        e = enddate.split('-')
-        endyr = int(e[0])
-        endmo = int(e[1])
-        endday = int(e[2])
+        def cosine_similarity(u, v):
+            return 1. - np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))
 
-        a = date(startyr, startmo, startday)
-        b = date(endyr, endmo, endday)
+        def relative_local_delays(hv, hT):
+            """This function returns a 'likeness' score at this station for the given hour, providing a state
+            of delay. The function expects that hT is a row matrix of samples for a given hour. This is rotated
+            to become a column matrix so as to provide comparison with the hour schedule vector at this station."""
+            hdelays = []
+            for i, r in enumerate(hT.T):
+                hdelays.append(cosine_similarity(hv, r))
+            return np.asarray(hdelays)
+
+        for d, day in enumerate(self.days):
+            for h, hour in enumerate(self.hours):
+
+                # hourly delay = something
+                hour_conf_vector = []
+                hour_historical_vector = []
+                for m, minute in enumerate(self.sample_points):
+
+                    # if there is an entry in the conformal schedule
+                    if self.conf_schedule[day][hour][minute]:
+
+                        hour_conf_vector.append(self.conf_schedule[day][hour][minute])
+
+                        if self.historical_timestamps[day][hour][minute]:
+                            # The historical timestamps consider all sample points in the history for that time point
+
+                            reference_timepoints = \
+                                self.conf_schedule[day][hour][minute].seconds + \
+                                np.asarray(self.historical_timestamps[day][hour][minute])
+
+                            temp_delay_schedule = \
+                                np.array(self.historical_schedule[day][hour][minute]) - reference_timepoints
+
+                            hour_historical_vector.append(temp_delay_schedule)
+
+                if paradigm in ['easy']:
+                    fill_against_array(hour_historical_vector, hour_conf_vector)
+                    hour_historical_vector = np.asarray(hour_historical_vector)
+                elif paradigm in ['hard']:
+                    fill_values(hour_historical_vector, stride)
+                    hour_historical_vector = np.asarray(hour_historical_vector)
+                else:
+                    print 'paradigm not recognized'
+                    sys.exit(0)
+
+                # 1-factor allows for positive values leading to delay
+
+                self.hour_delay_schedule[day][hour] = 1-relative_local_delays(hour_conf_vector, hour_historical_vector)
+                histo = np.histogram(self.hour_delay_schedule[day][hour], range=(0., 1.), bins=(self.delay_nbins - 1))
+                self.hour_delay_bins[day][hour] = histo[1]
+                self.hour_delay_state[day][hour] = np.digitize(self.delay_schedule[day][hour], bins=(histo[1])) - 1
+
+        self.delays_computed = 1
+
+    def compute_hourly_delay_state_diagram(self, paradigm):
+        """This function computes the delay state diagrams based on the hourly delay
+           states. This means that the function determines the JOINT state of the parents (usually 1)
+           and stores the state of self in the history dependent on the parents"""
+
+        if paradigm in ['easy']:
+            fill_value = 0
+        elif paradigm in ['hard']:
+            fill_value = 1
+
+        if self.has_parents:
+            for p in self.parent_stations:
+                self.parent_delay_status *= p.delays_computed
+            print "parent delay status: %s" % self.parent_delay_status
+
+        for d, day in enumerate(self.days):
+            for h, hour in enumerate(self.hours):
+
+                if self.has_parents and self.parent_delay_status:
+
+                    # collect delay states into diagram
+                    for e, value in enumerate(self.hour_delay_state[day][hour]):
+                        parent_states = []
+                        for p in self.parent_stations:
+                            try:
+                                parent_states.append(p.hour_delay_state[day][hour][e])
+                            except IndexError:
+                                parent_states.append(fill_value)
+
+                        self.delay_state_diagram[day][hour][tuple(parent_states)].append(value)
+
+                elif self.has_parents and not self.parent_delay_status:
+                    # compute the delay diagram with modified parent states
+                    for e, value in enumerate(self.hour_delay_state[day][hour]):
+                        parent_states = []
+                        for p in self.parent_stations:
+                            if p.delays_computed:
+                                try:
+                                    parent_states.append(p.hour_delay_state[day][hour][e])
+                                except IndexError:
+                                    parent_states.append(fill_value)
+                            else:
+                                parent_states.append(0)
+
+                        # check here to see that the vectors involved are the same length.
+                        # Otherwise fill to paradigm
+
+
+                        self.delay_state_diagram[day][hour][tuple(parent_states)].append(value)
+                else:
+                    for e, value in enumerate(self.hour_delay_state[day][hour]):
+                        self.delay_state_diagram[day][hour][tuple([0])].append(value)
 
         for d, day in enumerate(self.days):
             for h, hour in enumerate(self.hours):
                 for m, minute in enumerate(self.sample_points):
-                    if self.conf_schedule[day][hour][minute]:
-                        # THIS NEEDS TO BE REWRITTEN FOR THE NEW PARADIGM
-                        if self.historical_timestamps[day][hour][minute] \
-                                and self.historical_schedule[day][hour][minute]:
+                    for s, state in enumerate(self.enumerate_parent_states()):
+                        self.hour_delay_state_diagram[day][hour][minute][state] = \
+                            np.histogram(self.hour_delay_state_diagram[day][hour][minute][state],
+                                         bins=(self.delay_nbins - 1))[0]
 
-                            # The historical timestamps consider all sample points in the history
 
-                            reference_timepoints = \
-                                        self.conf_schedule[day][hour][minute].seconds+\
-                                        np.asarray(self.historical_timestamps[day][hour][minute])
+    def compute_delay_histogram(self):
 
-                            # Subtract the reference point from the historical schedule to get the naive delays
-
-                            self.delay_schedule[day][hour][minute] = np.array(self.historical_schedule[day][hour][minute])-reference_timepoints
-                            histo = np.histogram(self.delay_schedule[day][hour][minute], bins=(self.delay_nbins-1))
-                            self.delay_bins[day][hour][minute] = histo[1]
-                            self.delay_state[day][hour][minute] = np.digitize(self.delay_schedule[day][hour][minute], bins=(histo[1]))-1
-                            self.delays_computed = 1
-
+        for d, day in enumerate(self.days):
+            for h, hour in enumerate(self.hours):
+                for m, minute in enumerate(self.sample_points):
+                    if self.conf_schedule[day][hour][minute] and self.historical_timestamps[day][hour][minute] and \
+                            self.historical_schedule[day][hour][minute]:
+                        reference_timepoints = self.conf_schedule[day][hour][minute].seconds + np.asarray(
+                            self.historical_timestamps[day][hour][minute])
+                        self.delay_schedule[day][hour][minute] = np.array(
+                            self.historical_schedule[day][hour][minute]) - reference_timepoints
+                        histo = np.histogram(self.delay_schedule[day][hour][minute], bins=(self.delay_nbins - 1))
+                        self.delay_bins[day][hour][minute] = histo[1]
+                        self.delay_state[day][hour][minute] = np.digitize(self.delay_schedule[day][hour][minute],
+                                                                          bins=(histo[1]))
 
     def compute_delay_state_diagram(self, paradigm):
         """This function computes the delay state diagrams based on the delay
@@ -415,7 +530,9 @@ class MTAStation(Station):
                     for m, minute in enumerate(self.sample_points):
                         for s, state in enumerate(self.enumerate_parent_states()):
                             self.delay_state_diagram[day][hour][minute][state] = \
-                                np.histogram(self.delay_state_diagram[day][hour][minute][state], bins=(self.delay_nbins-1))[0]
+                                np.histogram(self.delay_state_diagram[day][hour][minute][state],
+                                             bins=(self.delay_nbins - 1))[0]
+
 
     def enumerate_parent_states(self):
         if self.has_parents and self.parent_delay_status:
@@ -434,10 +551,6 @@ class MTAStation(Station):
             return list(itertools.product(*parent_states))
         else:
             return [(0,)]
-
-
-    #def rectify_delay_state_histograms(self):
-
 
 
     def condense_delay_state_weekdays(self):
@@ -460,8 +573,8 @@ class MTAStation(Station):
             with open('%s_%s_MTA_historical_timestamps.pkl' % (timestamp, self.station_id), 'wb') as outfile:
                 pickle.dump(self.historical_timestamps, outfile)
 
-    def load_station_history(self, path):
 
+    def load_station_history(self, path):
         for dir_entry in os.listdir(path):
             dir_entry_path = os.path.join(path, dir_entry)
             if os.path.isfile(dir_entry_path):
@@ -470,23 +583,23 @@ class MTAStation(Station):
                 if (name.split('_')[1] == self.station_id) and (name.split('.')[-1] == 'pkl'):
                     print "inside 1: %s" % name.split('.')
 
-                    #print name.split('.')[0]
+                    # print name.split('.')[0]
                     if name.split('.')[1].split('_')[-1] == 'schedule':
                         try:
-                            with open(name,'rb') as f:
+                            with open(name, 'rb') as f:
                                 print 'schedule detected'
                                 pkl_history = pickle.load(f)
                                 if not np.any(pkl_history):
-                                     print 'An empty history was loaded for station %s' % self.station_id
+                                    print 'An empty history was loaded for station %s' % self.station_id
                                 self.historical_schedule = pkl_history
                                 print self.historical_schedule
                         except IOError as exc:
-                            if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
-                                raise # Propagate other kinds of IOError.
+                            if exc.errno != errno.EISDIR:  # Do not fail if a directory is found, just ignore it.
+                                raise  # Propagate other kinds of IOError.
 
                     if name.split('.')[1].split('_')[-1] == 'timestamps':
                         try:
-                            with open(name,'rb') as f:
+                            with open(name, 'rb') as f:
                                 print 'timestamps detected'
                                 pkl_timestamps = pickle.load(f)
                                 if not np.any(pkl_timestamps):
@@ -495,10 +608,8 @@ class MTAStation(Station):
                                 print self.historical_timestamps
 
                         except IOError as exc:
-                            if exc.errno != errno.EISDIR: # Do not fail if a directory is found, just ignore it.
-                                raise # Propagate other kinds of IOError.
-
-
+                            if exc.errno != errno.EISDIR:  # Do not fail if a directory is found, just ignore it.
+                                raise  # Propagate other kinds of IOError.
 
 
     def save_station_delay_state(self, timestamp):
@@ -515,9 +626,9 @@ class MTAStation(Station):
             with open('%s_%s_MTA_minute_sample_points.pkl' % (timestamp, self.station_id), 'wb') as outfile:
                 pickle.dump(self.sample_points, outfile)
 
+
     def save_delay_histos(self, timestamp):
         if np.any(self._delay_schedule):
-
             with open('%s_%s_MTA_delay_histo.pkl' % (timestamp, self.station_id), 'wb') as outfile:
                 pickle.dump(self.delay_schedule, outfile)
 

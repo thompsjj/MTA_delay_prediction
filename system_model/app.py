@@ -77,9 +77,9 @@ def main(argv):
         mta_system.load_history('./history2')
 
 # Delay histograms need to be calculated first
-    sys.exit(0)
-    mta_system.compute_delay_histograms('l', '2014-11-24', '2014-11-25', 10)
 
+    mta_system.compute_delay_histograms('l', '2014-11-24', '2014-11-25', 10)
+    sys.exit(0)
     print 'computing state diagrams'
 
     mta_system.compute_delay_state_diagrams('l','2014-11-24', '2014-11-25', 10)

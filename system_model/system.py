@@ -92,6 +92,7 @@ class MTASystem(System):
 
     def sample_arrival_times_from_db(self, start_date, end_date, database, tablename, user, host, password):
         for stid, stn in self.station.iteritems():
+            print "sampling station: %s" % stid
             stn.sample_history_from_db_threaded( start_date, end_date, database, tablename, user, host, password)
 
 
@@ -99,6 +100,13 @@ class MTASystem(System):
         self.num_delay_histo_bins = nbins
         for stid, stn in self.station.iteritems():
             stn.compute_delay_histogram(paradigm, start_date, end_date)
+
+            print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn.delay_schedule))
+
+    def compute_hourly_delay_histograms(self, paradigm, start_date, end_date, nbins):
+        self.num_delay_histo_bins = nbins
+        for stid, stn in self.station.iteritems():
+            stn.compute_hourly_delay_histogram(paradigm, start_date, end_date)
 
             print "complete station id: %s num_nonzero: %s" % (stid, np.count_nonzero(stn.delay_schedule))
 
